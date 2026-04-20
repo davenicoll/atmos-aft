@@ -342,7 +342,7 @@ The `docs/architecture/atmos-model.md` §3 chain — org `_defaults` → tenant 
 
 - **Org-level `_defaults.yaml`** sets `namespace`, `tags` (compliance/cost allocation), and any organization-wide constants (`aft_management_account_id`, `ct_home_region`).
 - **Tenant-level `_defaults.yaml`** sets `tenant`. Our tenants are roughly "aft-core" (the management-plane components) and per-OU tenants for target-account customizations.
-- **Stage-level `_defaults.yaml`** sets `stage` — `mgmt` for the AFT management account, `prod`/`dev`/`security`/`audit` for downstream.
+- **Stage-level `_defaults.yaml`** sets `stage` — `mgmt` for the atmos-aft management account, `prod`/`dev`/`security`/`audit` for downstream.
 - **Region mixin** (`mixins/region/us-east-1.yaml` etc.) sets `region`.
 - **Leaf** (`stacks/orgs/<org>/<tenant>/<stage>/<region>.yaml`) declares which components exist in that stack and sets component-specific `vars`.
 

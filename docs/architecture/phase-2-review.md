@@ -14,7 +14,7 @@ Initial verdict on 2026-04-20 was **BLOCKED** on a central→target auth-chain d
 
 This is the canonical blocker and the direct reason for a BLOCKED verdict. Already filed as task #26.
 
-**What should happen.** Every component whose target account is not AFT-mgmt runs with credentials of `AtmosDeploymentRole` (or `AtmosDeploymentRole-ReadOnly` for plan-only) in that target account. The hop from the central identity (`AtmosCentralDeploymentRole` in AFT-mgmt, reached via GHA OIDC or the bootstrap-user access keys) to the target role is the core load-bearing invariant of the whole design (`gha-design.md` §4.5, §4.6; `atmos-model.md` §5; `mapping.md` §5.1).
+**What should happen.** Every component whose target account is not atmos-aft mgmt runs with credentials of `AtmosDeploymentRole` (or `AtmosDeploymentRole-ReadOnly` for plan-only) in that target account. The hop from the central identity (`AtmosCentralDeploymentRole` in atmos-aft mgmt, reached via GHA OIDC or the bootstrap-user access keys) to the target role is the core load-bearing invariant of the whole design (`gha-design.md` §4.5, §4.6; `atmos-model.md` §5; `mapping.md` §5.1).
 
 **What actually happens in the shipped code.** The hop never runs.
 
@@ -31,14 +31,14 @@ Evidence:
    - `components/terraform/guardduty-root/providers.tf` — same.
    - `components/terraform/iam-deployment-roles/central/providers.tf` — same.
    - `components/terraform/iam-deployment-roles/target/providers.tf` — declares an `aws.target` alias but with a bare `provider "aws" { alias = "target"; region = var.region }` and a comment that says `# assume_role is rendered by Atmos per the auth chain` (lines 10–14). Atmos does not render it (the `auth:` block was removed to accommodate Atmos 1.203 not recognising `aws-oidc`). The aliased provider therefore inherits ambient central credentials, exactly like the default provider.
-5. **Only one component references `aws.target`** (`iam-deployment-roles/target/main.tf`). Every other cross-account component — `tfstate-backend`, `guardduty-member-settings`, `security-hub`, `inspector2`, `aws-account-settings`, `aws-budgets`, `aws-scp`, `cloudwatch-log-groups`, `aft-ssm-parameters`, `dns-delegated`, etc. — uses the unaliased default provider. With central creds in the ambient environment, **every "target-account" component applies to AFT-mgmt instead of its target account.**
+5. **Only one component references `aws.target`** (`iam-deployment-roles/target/main.tf`). Every other cross-account component — `tfstate-backend`, `guardduty-member-settings`, `security-hub`, `inspector2`, `aws-account-settings`, `aws-budgets`, `aws-scp`, `cloudwatch-log-groups`, `aft-ssm-parameters`, `dns-delegated`, etc. — uses the unaliased default provider. With central creds in the ambient environment, **every "target-account" component applies to atmos-aft mgmt instead of its target account.**
 
-**Net effect.** PR plans, drift detection, provision-account, customize-fleet, destroy-account, and bootstrap job 5a–6d (the CT-core role stamping) all silently run against the wrong account. The failure will not be detected by `atmos terraform plan` against an empty target account — it will happily plan the component in AFT-mgmt. Apply will either (a) double-create resources in AFT-mgmt until an SCP denies it, or (b) succeed in AFT-mgmt against CT's own baseline, corrupting it.
+**Net effect.** PR plans, drift detection, provision-account, customize-fleet, destroy-account, and bootstrap job 5a–6d (the CT-core role stamping) all silently run against the wrong account. The failure will not be detected by `atmos terraform plan` against an empty target account — it will happily plan the component in atmos-aft mgmt. Apply will either (a) double-create resources in atmos-aft mgmt until an SCP denies it, or (b) succeed in atmos-aft mgmt against CT's own baseline, corrupting it.
 
 **Follow-up.** Task #26 is the correct owner — it already lists three candidate fixes (A restore an Atmos-supported `auth:` syntax, B wire per-component `providers.tf` `assume_role` from `TF_VAR_target_role_arn`, C env-var-reading provider wrapper). I do not need to disambiguate the fix — atmos-engineer + gha-engineer are on it. I would flag only:
 
 - Option B is my preferred default. It pushes the assumption into each `providers.tf` where it can be audited, keeps `atmos.yaml` 1.203-compatible, and matches the upstream Cloudposse pattern. The cost is one `assume_role { role_arn = var.target_role_arn, session_name = var.target_session_name }` block per component + one `target_role_arn` variable in `variables.tf`. GHA's `_atmos-plan`/`_atmos-apply` sets `TF_VAR_target_role_arn` after `resolve-stack` resolves it, and OPA/unit tests can assert the block's presence.
-- Whatever fix lands must include a **Terratest case** that applies a trivial cross-account component (e.g. `aws-account-settings`) and asserts `sts:GetCallerIdentity` inside the provider resolves to the **target** account, not AFT-mgmt. Without that, the defect can regress unobserved.
+- Whatever fix lands must include a **Terratest case** that applies a trivial cross-account component (e.g. `aws-account-settings`) and asserts `sts:GetCallerIdentity` inside the provider resolves to the **target** account, not atmos-aft mgmt. Without that, the defect can regress unobserved.
 - The `central_role_arn` + `target_role_name` inputs added to `_atmos-plan.yaml` (lines 29–38) for PR/drift plan-only defence-in-depth are correctly plumbed into `configure-aws` and `resolve-stack` at the workflow layer, but the *target* role is only honoured once the chain is restored. So the plan-only defence is currently equivalent to the deploy-capable path until #26 lands.
 
 Everything below stands on the assumption that #26 closes without disturbing the rest of the implementation.
@@ -106,9 +106,9 @@ OIDC is the default. Access-key is opt-in via `vars.AFT_AUTH_MODE='access_key'` 
 
 ### 2.6 Item 6 — Both topologies (`separate_aft_mgmt_account=true|false`) ⚠️
 
-The topology switch surfaces in `bootstrap.yaml` as `inputs.separate_aft_mgmt_account` (line 12–15) and correctly gates the AFT-mgmt-specific stamping jobs 5b and 6b via `if: inputs.separate_aft_mgmt_account == true`. Jobs 5c and 6c use `needs: [stamp-roles-ct-mgmt, stamp-roles-aft-mgmt]` with `if: always() && ... (needs.stamp-roles-aft-mgmt.result == 'success' || needs.stamp-roles-aft-mgmt.result == 'skipped')` so the skipped path is correctly rejoined. Good.
+The topology switch surfaces in `bootstrap.yaml` as `inputs.separate_aft_mgmt_account` (line 12–15) and correctly gates the atmos-aft-mgmt-specific stamping jobs 5b and 6b via `if: inputs.separate_aft_mgmt_account == true`. Jobs 5c and 6c use `needs: [stamp-roles-ct-mgmt, stamp-roles-aft-mgmt]` with `if: always() && ... (needs.stamp-roles-aft-mgmt.result == 'success' || needs.stamp-roles-aft-mgmt.result == 'skipped')` so the skipped path is correctly rejoined. Good.
 
-**What I cannot verify:** nothing in the stack catalog tree (`stacks/catalog/account-classes/`) or `_defaults.yaml` branches on this topology. The single-account mode (CT-mgmt *is* AFT-mgmt) needs the central roles + primary tfstate + AtmosReadAllStateRole all to live in CT-mgmt instead of a separate aft-mgmt account. The `account-classes/aft-mgmt.yaml` vs `ct-mgmt.yaml` split implies two accounts; when they collapse, the stack catalog needs a branch or a single `aft-mgmt.yaml` that also carries the CT-mgmt role set. **I did not find that branch.** Filing a follow-up to verify: either (a) stacks/catalog/_defaults branches on the topology, (b) there's operator guidance in `README.md` for the collapse case, or (c) this case is explicitly deferred from Phase 1. Cannot declare READY without confirming.
+**What I cannot verify:** nothing in the stack catalog tree (`stacks/catalog/account-classes/`) or `_defaults.yaml` branches on this topology. The single-account mode (CT-mgmt *is* atmos-aft mgmt) needs the central roles + primary tfstate + AtmosReadAllStateRole all to live in CT-mgmt instead of a separate aft-mgmt account. The `account-classes/aft-mgmt.yaml` vs `ct-mgmt.yaml` split implies two accounts; when they collapse, the stack catalog needs a branch or a single `aft-mgmt.yaml` that also carries the CT-mgmt role set. **I did not find that branch.** Filing a follow-up to verify: either (a) stacks/catalog/_defaults branches on the topology, (b) there's operator guidance in `README.md` for the collapse case, or (c) this case is explicitly deferred from Phase 1. Cannot declare READY without confirming.
 
 ### 2.7 Item 7 — Tests run green ⚠️ (cannot verify in this environment)
 
@@ -177,7 +177,7 @@ Not strictly part of the checklist but worth logging:
 
 **BLOCKED.**
 
-One critical auth-chain defect (#26) means the entire Phase 2 runtime is miswired: every "target-account" component would run against AFT-mgmt with central credentials. That is the whole load-bearing invariant of the design. No other finding rises to blocker severity.
+One critical auth-chain defect (#26) means the entire Phase 2 runtime is miswired: every "target-account" component would run against atmos-aft mgmt with central credentials. That is the whole load-bearing invariant of the design. No other finding rises to blocker severity.
 
 **When #26 closes**, the re-review loop should be:
 

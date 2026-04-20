@@ -56,6 +56,15 @@ Control Tower owns the Organization, OUs, baseline guardrail SCPs, the org-level
 
 ## 2. Architecture
 
+### Terminology
+
+Two distinct concepts share the phrase "AFT management account" in the wild. This repo disambiguates in prose:
+
+- **atmos-aft management account** — the dedicated AWS account in _this_ deployment that hosts the central IAM role (`AtmosCentralDeploymentRole`), the plan-only and read-all-state roles, the central bootstrap state bucket, the Control Tower event bridge, and (when `separate_aft_mgmt_account=true`) the Account Factory plumbing. Rendered as `aft-gbl-mgmt` in the stack catalog.
+- **(upstream) AFT management account** — the equivalent concept in AWS's `terraform-aws-control_tower_account_factory` reference implementation. Used only when comparing against upstream, describing migration, or quoting the baseline doc.
+
+Technical identifiers (`aft-mgmt` as a stack/stage/account-class label, `aft_mgmt_account_id` as an input) are left verbatim in both cases; only the prose form is disambiguated.
+
 Three design docs are the source of truth; this section is a pointer.
 
 | Doc | Scope |
@@ -109,14 +118,14 @@ Phases 1 and 2 are one-time infrastructure (run during bootstrap, then rarely to
 Before running atmos-aft's bootstrap:
 
 1. **AWS Control Tower landing zone** deployed and `ACTIVE`. ct-management, log-archive, and audit accounts exist. OUs are created via CT.
-2. **AFT management account** provisioned through CT Account Factory (name suggestion: `AFT-Management` in a dedicated OU). Single-account topology — where CT-mgmt doubles as AFT-mgmt — is supported with the `separate_aft_mgmt_account=false` bootstrap input, but a dedicated account is recommended.
+2. **atmos-aft management account** provisioned through CT Account Factory (name suggestion: `AFT-Management` in a dedicated OU). Single-account topology — where CT-mgmt doubles as the atmos-aft management account — is supported with the `separate_aft_mgmt_account=false` bootstrap input, but a dedicated account is recommended.
 3. **GitHub organization and repository** hosting this codebase. Repository variables set:
    - `ATMOS_CENTRAL_ROLE_ARN` — ARN of `AtmosCentralDeploymentRole` (written by bootstrap).
    - `AFT_AUTH_MODE` — `oidc` (default) or `access_key` (dev-only).
    - `ATMOS_EXTERNAL_ID` — static UUID used as `sts:ExternalId` when assuming CT-core roles.
-4. **GitHub OIDC provider** in AFT-mgmt (`arn:aws:iam::<aft-mgmt>:oidc-provider/token.actions.githubusercontent.com`). Provisioned by the `bootstrap.yaml` workflow on first run.
+4. **GitHub OIDC provider** in the atmos-aft management account (`arn:aws:iam::<aft-mgmt>:oidc-provider/token.actions.githubusercontent.com`). Provisioned by the `bootstrap.yaml` workflow on first run.
 5. **A bootstrap identity** with programmatic AWS credentials sufficient to create the OIDC provider and the central deployment role on first run. This is used exactly once, then rotated out. See `gha-design.md` §4.5 for the exact permissions.
-6. **Service Catalog Account Factory portfolio** shared with AFT-mgmt (handled by `iam-roles-management`'s `associate_aft_service_role_with_account_factory` step if missing).
+6. **Service Catalog Account Factory portfolio** shared with the atmos-aft management account (handled by `iam-roles-management`'s `associate_aft_service_role_with_account_factory` step if missing).
 7. **CloudTrail Lake event data store** in the audit account, or provision via the `cloudtrail-lake` component during bootstrap.
 
 ### Supported regions
@@ -148,16 +157,16 @@ atmos list stacks
 From the GitHub UI, trigger `bootstrap.yaml`:
 
 
-- `aft_mgmt_account_id`: ID of your AFT management account (or CT-mgmt if single-account).
+- `aft_mgmt_account_id`: ID of your atmos-aft management account (or CT-mgmt if single-account).
 - `aft_mgmt_region`: CT home region.
 - `separate_aft_mgmt_account`: `true` if AFT runs in a dedicated account (default).
 - `terraform_distribution`: `oss` (default) or `tfc`.
 
 The workflow runs once and produces:
 
-- `github-oidc-provider` in AFT-mgmt.
-- `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, and `AtmosReadAllStateRole` in AFT-mgmt (all OIDC-trusted).
-- `AtmosDeploymentRole` stamped in the CT-core accounts (CT-mgmt, AFT-mgmt, audit, log-archive) via `_bootstrap-target.yaml`, using `OrganizationAccountAccessRole` as the bootstrap identity. When `separate_aft_mgmt_account=false`, CT-mgmt doubles as AFT-mgmt and only three accounts are stamped.
+- `github-oidc-provider` in the atmos-aft management account.
+- `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, and `AtmosReadAllStateRole` in the atmos-aft management account (all OIDC-trusted).
+- `AtmosDeploymentRole` stamped in the CT-core accounts (CT-mgmt, AFT-mgmt, audit, log-archive — class labels) via `_bootstrap-target.yaml`, using `OrganizationAccountAccessRole` as the bootstrap identity. When `separate_aft_mgmt_account=false`, CT-mgmt doubles as the atmos-aft management account and only three accounts are stamped.
 - Central bootstrap state bucket (`tfstate-backend-central`) and per-core-account primary `tfstate-backend` instances.
 - Security-service delegation for GuardDuty, Security Hub, and Inspector2 (phases 1+2 only — empty `target_stacks` at bootstrap time, no members yet).
 
@@ -477,7 +486,7 @@ Typical contents: ServiceNow ticket creation, approval gate, compliance tagging,
 
 ### 9.5 Lifecycle events from Control Tower
 
-CT emits `CreateManagedAccount`, `UpdateManagedAccount`, and `RegisterOrganizationalUnit` events on the CT-mgmt default bus. atmos-aft routes these to a custom bus in AFT-mgmt → API Destination → GitHub `repository_dispatch` → `ct-lifecycle-event.yaml`. Operators can hook into this workflow to react to CT-initiated changes (account moves, OU registrations) that were not triggered by a merge to this repo.
+CT emits `CreateManagedAccount`, `UpdateManagedAccount`, and `RegisterOrganizationalUnit` events on the CT-mgmt default bus. atmos-aft routes these to a custom bus in the atmos-aft management account → API Destination → GitHub `repository_dispatch` → `ct-lifecycle-event.yaml`. Operators can hook into this workflow to react to CT-initiated changes (account moves, OU registrations) that were not triggered by a merge to this repo.
 
 ---
 
@@ -490,7 +499,7 @@ For teams currently running upstream AFT. The migration is incremental; both sys
 Summary of the migration path:
 
 1. **Audit** — inventory AFT-managed accounts, customizations, SSM parameters, inputs, and in-flight state.
-2. **Side-by-side bootstrap** — stand up atmos-aft in the same AFT-mgmt account. Different IAM role names, separate state backends, no DDB tables. AFT keeps operating.
+2. **Side-by-side bootstrap** — stand up atmos-aft in the same account that hosts upstream AFT (the atmos-aft management account becomes that account). Different IAM role names, separate state backends, no DDB tables. AFT keeps operating.
 3. **Account-by-account import** — for each account: author stack YAML, run `scripts/import-existing-accounts.sh`, run `import-existing-account.yaml`, verify zero-diff plan, decommission from AFT.
 4. **Customization migration** — customer-owned Terraform ports directly. Backend Jinja files are deleted (atmos-aft renders natively). The `aft-account-provisioning-customizations` SFN is rewritten as GHA jobs.
 5. **Decommission AFT** — once the last account is migrated, destroy AFT's Terraform root module, remove the `AWSAFT*` roles, archive the AFT state bucket.
@@ -575,14 +584,14 @@ Two parallel chains, separated by intent:
 Apply paths (bootstrap, provision-account, customize-*, destroy-account):
 GitHub OIDC principal (token.actions.githubusercontent.com)
   └─ sts:AssumeRoleWithWebIdentity (sub claim scoped to this repo + environment)
-       → AtmosCentralDeploymentRole (in AFT-mgmt)
+       → AtmosCentralDeploymentRole (in atmos-aft mgmt)
             └─ sts:AssumeRole (with sts:ExternalId for CT-core; session=atmos-<workflow>-<run-id>)
                  → AtmosDeploymentRole (in target account)   [AdministratorAccess]
 
 Plan-only paths (pr.yaml, drift-detection.yaml):
 GitHub OIDC principal
   └─ sts:AssumeRoleWithWebIdentity
-       → AtmosPlanOnlyRole (in AFT-mgmt)
+       → AtmosPlanOnlyRole (in atmos-aft mgmt)
             └─ sts:AssumeRole
                  → AtmosDeploymentRoleReadOnly (in target account)   [ReadOnlyAccess]
 ```

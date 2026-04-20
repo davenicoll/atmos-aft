@@ -13,7 +13,7 @@ This document specifies the GitHub Actions topology that replaces AFT's CodeBuil
 **What is configurable, what is not.** The topology is deliberately a single shape with a small number of deployment-time switches. The two switches that matter are:
 
 1. **Auth mode** — `oidc` (default) or `access_key`. Chosen per environment at bootstrap; both must work end-to-end. See §4.
-2. **Management-account placement** — `separate_aft_mgmt_account: true|false`. When `true`, a dedicated AFT-management account hosts the central deployment role and the state backend. When `false`, the Control Tower management account hosts them. No separate workflow tree — only the target of the `AtmosCentralDeploymentRole` and the `tfstate-backend` stack location move. See §3.3.
+2. **Management-account placement** — `separate_aft_mgmt_account: true|false`. When `true`, a dedicated atmos-aft management account hosts the central deployment role and the state backend. When `false`, the Control Tower management account hosts them. No separate workflow tree — only the target of the `AtmosCentralDeploymentRole` and the `tfstate-backend` stack location move. See §3.3.
 
 Anything else the operator wants to vary (VCS provider, TF distribution, per-feature toggles) is Atmos stack configuration, not GHA configuration. The GHA layer stays small, generic, and reusable.
 
@@ -112,7 +112,7 @@ Leading underscore (`_`) on reusable workflow filenames is convention to keep th
 The factory always involves at least four AWS accounts:
 
 - **CT management account** — owns the Organization, Landing Zone, the CT Account Factory Service Catalog portfolio. Hosts `AtmosDeploymentRole` for `aws-scp`, `guardduty/root`, `security-hub/org-admin-delegation`, `inspector2/delegated-admin` applies.
-- **AFT management account** (optional — see §3.3) — hosts `AtmosCentralDeploymentRole` and `AtmosDeploymentRole`, the tfstate backend, and the `account-provisioning` component. Co-located with CT-management if `separate_aft_mgmt_account: false` (in which case one `AtmosDeploymentRole` instance serves both CT-management and AFT-management workloads).
+- **atmos-aft management account** (optional — see §3.3) — hosts `AtmosCentralDeploymentRole` and `AtmosDeploymentRole`, the tfstate backend, and the `account-provisioning` component. Co-located with CT-management if `separate_aft_mgmt_account: false` (in which case one `AtmosDeploymentRole` instance serves both CT-management and atmos-aft-management workloads).
 - **Audit account** — CT-provisioned; hosts `AtmosDeploymentRole` for `guardduty/delegated-admin`, `security-hub/aggregator`, `inspector2/org-settings`, `cloudtrail-lake` applies.
 - **Log-archive account** — CT-provisioned; hosts `AtmosDeploymentRole` for `cloudtrail-additional`, `centralized-logging-bucket`, `vpc-flow-logs-bucket` applies.
 - **N vended accounts** — created by the factory via Service Catalog; each hosts `AtmosDeploymentRole` and the full baseline + customizations.
@@ -265,7 +265,7 @@ Every numbered block is a GHA job; dependencies are `needs:` edges. Job 5 is an 
 
 The handoff between the bootstrap chain (jobs 3–4) and the normal chain (jobs 5–12) is implicit: `_bootstrap-target.yaml` sets `ATMOS_AUTH_IDENTITY=bootstrap`, while every other reusable leaves it unset so Atmos picks `identities.default`. Stack-catalog defaults pin the `bootstrap` identity on `tfstate-backend` and `iam-deployment-roles/target` (see §4.5). There is no explicit "switch roles" step; the `needs: iam-deployment-roles` edge plus the identity pinning is what guarantees job 5 sees `AtmosDeploymentRole`.
 
-### 3.3 Topology switch: separate AFT management account
+### 3.3 Topology switch: separate atmos-aft management account
 
 The operator chooses one of two topologies at bootstrap. Both are first-class; the only differences are:
 
@@ -274,7 +274,7 @@ The operator chooses one of two topologies at bootstrap. Both are first-class; t
 - which account holds the `tfstate-backend` stack
 
 ```
-Topology A: separate AFT management account (default for multi-tenant orgs)
+Topology A: separate atmos-aft management account (default for multi-tenant orgs)
 
    +---------------------+
    |  CT Management Acct |  --- CT Account Factory portfolio
@@ -297,7 +297,7 @@ Topology A: separate AFT management account (default for multi-tenant orgs)
    +---------------------+   +----------------------+
 
 
-Topology B: CT management = AFT management (default for single-tenant orgs)
+Topology B: CT management = atmos-aft management (default for single-tenant orgs)
 
    +---------------------+       +----------------------+
    |  CT Management Acct | ---   |  tfstate-backend S3  |
@@ -317,7 +317,7 @@ Topology B: CT management = AFT management (default for single-tenant orgs)
 
 The GHA workflow files are identical in both topologies. The difference is one stack-config variable (`settings.aft_mgmt_account_id`) and the `AtmosCentralDeploymentRole` role ARN that `configure-aws` resolves. No branching in workflow YAML, no separate code paths.
 
-Topology A is recommended for customers who have > 1 application team, who want deployment identities decoupled from the CT management account's blast radius, or who already operate an AFT installation that kept AFT-mgmt distinct. Topology B is simpler, has one fewer role to audit, and is the right default for single-team / demo / single-tenant deployments.
+Topology A is recommended for customers who have > 1 application team, who want deployment identities decoupled from the CT management account's blast radius, or who already operate an upstream AFT installation that kept its management account distinct. Topology B is simpler, has one fewer role to audit, and is the right default for single-team / demo / single-tenant deployments.
 
 ---
 
@@ -336,7 +336,7 @@ GitHub Actions runner
 token.actions.githubusercontent.com
    | sts:AssumeRoleWithWebIdentity
    v
-AtmosCentralDeploymentRole (in AFT-mgmt, Topology A, or CT-mgmt, Topology B)
+AtmosCentralDeploymentRole (in atmos-aft mgmt, Topology A, or CT-mgmt, Topology B)
    | sts:AssumeRole (session = atmos-<workflow>-<run_id>)
    v
 AtmosDeploymentRole (in target vended account)
@@ -451,7 +451,7 @@ GitHub Actions runner
 token.actions.githubusercontent.com
    | sts:AssumeRoleWithWebIdentity
    v
-AtmosCentralDeploymentRole (in AFT-mgmt)
+AtmosCentralDeploymentRole (in atmos-aft mgmt)
    | sts:AssumeRole (session = atmos-bootstrap-<stack>-<run_id>)
    v
 AWSControlTowerExecution (in newly vended account, stamped by CT Account Factory)
@@ -520,15 +520,15 @@ This replicates AFT's implicit separation between CodePipeline stages that `assu
 
 ### 4.6 Role placement matrix
 
-This section is the canonical answer to "which IAM role lives in which account, created by what, trusted by whom, used for what." It covers both the AFT-mgmt-hosted central plane and the per-account `AtmosDeploymentRole`.
+This section is the canonical answer to "which IAM role lives in which account, created by what, trusted by whom, used for what." It covers both the atmos-aft-management-hosted central plane and the per-account `AtmosDeploymentRole`.
 
 #### 4.6.1 Roles at a glance
 
 | Role | Home account | Created by | Trusted principals | Permissions | Used for |
 |---|---|---|---|---|---|
-| `AtmosCentralDeploymentRole` | AFT-mgmt | `iam-deployment-roles/central` (bootstrap.yaml step 3) | GitHub OIDC provider (`token.actions.githubusercontent.com`) with `sub` pinned to this repo + protected refs | `AdministratorAccess` + `sts:AssumeRole` on `*:role/AtmosDeploymentRole`, `*:role/AWSControlTowerExecution`, `*:role/OrganizationAccountAccessRole` | Fan-out root for every deploy/destroy workflow; first hop after OIDC. |
-| `AtmosPlanOnlyRole` | AFT-mgmt | `iam-deployment-roles/central` (bootstrap.yaml step 3) | GitHub OIDC (`sub:pull_request`) only | Read state S3/KMS + `sts:AssumeRole` on `*:role/AtmosDeploymentRole-ReadOnly` | `pr.yaml` plan job; never writes. |
-| `AtmosReadAllStateRole` | AFT-mgmt | `iam-deployment-roles/central` (bootstrap.yaml step 3) | `AtmosCentralDeploymentRole` only (same-account trust) | **Decrypt + read** only: `kms:Decrypt`, `kms:DescribeKey` (conditioned on `kms:ViaService=s3.<region>.amazonaws.com`); `s3:GetObject`, `s3:ListBucket`, `s3:GetBucketVersioning`. Permissions-boundary denies `s3:Put*`, `s3:Delete*`, `kms:Encrypt*`, `kms:GenerateDataKey*`, `kms:ReEncrypt*`. | Drift-summary aggregation across all target accounts' state buckets (`drift-detection.yaml`, post-plan-summary composite). Per-account CMK + S3 bucket policies grant it access — see `atmos-model.md §9.3.2`. |
+| `AtmosCentralDeploymentRole` | atmos-aft mgmt | `iam-deployment-roles/central` (bootstrap.yaml step 3) | GitHub OIDC provider (`token.actions.githubusercontent.com`) with `sub` pinned to this repo + protected refs | `AdministratorAccess` + `sts:AssumeRole` on `*:role/AtmosDeploymentRole`, `*:role/AWSControlTowerExecution`, `*:role/OrganizationAccountAccessRole` | Fan-out root for every deploy/destroy workflow; first hop after OIDC. |
+| `AtmosPlanOnlyRole` | atmos-aft mgmt | `iam-deployment-roles/central` (bootstrap.yaml step 3) | GitHub OIDC (`sub:pull_request`) only | Read state S3/KMS + `sts:AssumeRole` on `*:role/AtmosDeploymentRole-ReadOnly` | `pr.yaml` plan job; never writes. |
+| `AtmosReadAllStateRole` | atmos-aft mgmt | `iam-deployment-roles/central` (bootstrap.yaml step 3) | `AtmosCentralDeploymentRole` only (same-account trust) | **Decrypt + read** only: `kms:Decrypt`, `kms:DescribeKey` (conditioned on `kms:ViaService=s3.<region>.amazonaws.com`); `s3:GetObject`, `s3:ListBucket`, `s3:GetBucketVersioning`. Permissions-boundary denies `s3:Put*`, `s3:Delete*`, `kms:Encrypt*`, `kms:GenerateDataKey*`, `kms:ReEncrypt*`. | Drift-summary aggregation across all target accounts' state buckets (`drift-detection.yaml`, post-plan-summary composite). Per-account CMK + S3 bucket policies grant it access — see `atmos-model.md §9.3.2`. |
 | `AtmosDeploymentRole` | CT-mgmt, AFT-mgmt, audit, log-archive, every vended account | CT-core placements: `bootstrap.yaml` step 5 via `_bootstrap-target.yaml`. Vended placements: `provision-account.yaml` job 4 via `_bootstrap-target.yaml`. | `AtmosCentralDeploymentRole` (with `sts:ExternalId` guardrail on the four CT-core variants) | `AdministratorAccess` | Every component apply in jobs 5–12 of `provision-account.yaml` and every bootstrap/customize/destroy workflow's target-account step. |
 | `AtmosDeploymentRole-ReadOnly` | Every vended account (and CT-core accounts, same stamping path) | Same as `AtmosDeploymentRole` (same `iam-deployment-roles/target` component, extra role resource) | `AtmosPlanOnlyRole` | `ReadOnlyAccess` + `organizations:Describe*` | `pr.yaml` plan job per-account reads. |
 | `AWSControlTowerExecution` | Every CT-vended account (audit, log-archive, all vended — **not** CT-mgmt) | Control Tower Account Factory (not Atmos) | CT management account root | Effectively admin (CT-owned) | **Bootstrap identity only** — first hop into a newly vended account to stamp `AtmosDeploymentRole` and `tfstate-backend`. After stamping, not used again. |
@@ -543,7 +543,7 @@ The CT-vended bootstrap roles (`AWSControlTowerExecution`, `OrganizationAccountA
 | Account class | Components that require `AtmosDeploymentRole` (non-exhaustive) | Stamping workflow |
 |---|---|---|
 | CT management | `aws-scp`, `guardduty/root`, `security-hub/org-admin-delegation`, `inspector2/delegated-admin`, `identity-center-permission-sets` (§2.5 row 41), EventBridge rule for `controltower-event-bridge` (row 8) | `bootstrap.yaml` step 5a |
-| AFT management | `account-provisioning`, `iam-deployment-roles/central`, `aft-ssm-parameters`, `controltower-event-bridge`, all observability | `bootstrap.yaml` step 5b (only when `separate_aft_mgmt_account=true`; otherwise the CT-mgmt instance covers both) |
+| atmos-aft management | `account-provisioning`, `iam-deployment-roles/central`, `aft-ssm-parameters`, `controltower-event-bridge`, all observability | `bootstrap.yaml` step 5b (only when `separate_aft_mgmt_account=true`; otherwise the CT-mgmt instance covers both) |
 | Audit | `guardduty/delegated-admin`, `security-hub/aggregator`, `inspector2/org-settings`, `cloudtrail-lake` (if adopted — see `module-inventory.md` §7 Q7), `vpc-flow-logs-bucket` | `bootstrap.yaml` step 5c |
 | Log-archive | `cloudtrail-additional`, `centralized-logging-bucket` | `bootstrap.yaml` step 5d |
 | Vended | Every component in `provision-account.yaml` jobs 5–12 | `provision-account.yaml` job 4 |
@@ -584,7 +584,7 @@ The CT-vended bootstrap roles (`AWSControlTowerExecution`, `OrganizationAccountA
 GitHub Actions runner (bootstrap environment)
    | id-token: write
    v
-AtmosCentralDeploymentRole (in AFT-mgmt, created by bootstrap.yaml step 3)
+AtmosCentralDeploymentRole (in atmos-aft mgmt, created by bootstrap.yaml step 3)
    | sts:AssumeRole
    v
 OrganizationAccountAccessRole (in CT-mgmt / audit / log-archive — present since Organization creation)
@@ -593,7 +593,7 @@ OrganizationAccountAccessRole (in CT-mgmt / audit / log-archive — present sinc
 AtmosDeploymentRole (now exists in the target core account)
 ```
 
-For the three CT-vended core accounts (audit, log-archive, and the AFT-mgmt account if CT vended it), `AWSControlTowerExecution` is also usable; the bootstrap workflow prefers `OrganizationAccountAccessRole` because it exists in all four classes (CT-mgmt included, where `AWSControlTowerExecution` does not). The `_bootstrap-target.yaml` `fallback_role` input (§6.9) overrides on a per-call basis when needed.
+For the three CT-vended core accounts (audit, log-archive, and the atmos-aft management account if CT vended it), `AWSControlTowerExecution` is also usable; the bootstrap workflow prefers `OrganizationAccountAccessRole` because it exists in all four classes (CT-mgmt included, where `AWSControlTowerExecution` does not). The `_bootstrap-target.yaml` `fallback_role` input (§6.9) overrides on a per-call basis when needed.
 
 **Per-account stack.** Each CT-core account gets a stack under `stacks/orgs/<org>/core/<account>/` with at minimum:
 
@@ -961,7 +961,7 @@ Total budget 45 min (AWS docs: CT account closure is typically 15-30 min, tail t
 4. `_atmos-apply.yaml` targeting `tfstate-backend` (aft-mgmt's own primary bucket) in the same stack. Backend: central bootstrap bucket at `bootstrap/<aft-mgmt-id>/tfstate-backend/terraform.tfstate`. Apply creates `atmos-tfstate-<aft-mgmt-id>-<region>` + CMK.
 5. **Stamp `AtmosDeploymentRole` into the four CT-managed core accounts** (placement rationale + trust policy: §4.6). Sequential, one call to `_bootstrap-target.yaml` (§6.9) per account with `component=iam-deployment-roles/target` and `fallback_role=OrganizationAccountAccessRole`. State for each of these applies is kept in the central bootstrap bucket at `bootstrap/<account-id>/iam-deployment-roles/terraform.tfstate`, since per-account state buckets in the core accounts don't exist yet — step 6 creates them.
     - 5a. CT-mgmt account.
-    - 5b. AFT-mgmt account — **skipped** when `separate_aft_mgmt_account=false` (same account as 5a).
+    - 5b. atmos-aft mgmt account — **skipped** when `separate_aft_mgmt_account=false` (same account as 5a).
     - 5c. Audit account.
     - 5d. Log-archive account.
 
@@ -1594,7 +1594,7 @@ Five GHA environments:
 | Environment | Scope | Required reviewers | Wait timer | Deployment branches |
 |---|---|---|---|---|
 | `pr` | PR plans, validations | none | none | any |
-| `aft-mgmt` | All writes to AFT-mgmt account (bootstrap, account-provisioning, customizations orchestration) | 1 | none | `main` |
+| `aft-mgmt` | All writes to the atmos-aft management account (bootstrap, account-provisioning, customizations orchestration) | 1 | none | `main` |
 | `prod` | All writes to vended accounts classified as production | 2 | 10 minutes | `main` |
 | `non-prod` | All writes to vended accounts classified as dev/staging | 1 | none | `main` |
 | `destroy` | `destroy-account.yaml` only | 2 | 30 minutes | `main` |
@@ -1690,7 +1690,7 @@ Mapped from `mapping.md` §9; each item resolved or flagged.
 | §9.10 `terraform_token` | GHA environment secret `TERRAFORM_CLOUD_TOKEN` §10.1; rotation §10.4. |
 | §9.11 Forbidden-components enforcement | `pr.yaml` `policy` job runs `forbidden-components.rego`. |
 | review.md Blocker 3 — state backend topology + cross-account KMS | Resolved in `atmos-model.md` §9.3 (task #9). Decision: per-account primary backend; central bootstrap bucket in aft-mgmt holds every account's `tfstate-backend` state only. KMS key policy template in §9.3.2 grants `AtmosReadAllStateRole` cross-account `kms:Decrypt` for drift summary aggregation. Bootstrap order in §9.3.3; single-region, no DR for Phase 1 (§9.3.4). `bootstrap.yaml` §5.8 updated. |
-| review.md Blocker 4 — `AtmosDeploymentRole` in CT-mgmt / audit / log-archive | Resolved §3.1 + §4.6 + §5.8 (task #10). §4.6.1 is the canonical role-placement matrix covering `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole` (all in AFT-mgmt, from `iam-deployment-roles/central`), `AtmosDeploymentRole` + `AtmosDeploymentRole-ReadOnly` (in all five account classes, from `iam-deployment-roles/target`), and the two bootstrap-only CT-vended roles (`AWSControlTowerExecution`, `OrganizationAccountAccessRole`). §4.6.2 lists which components require `AtmosDeploymentRole` per class. Trust policy template with `sts:ExternalId` guardrail for the four CT-core placements is in §4.6. `bootstrap.yaml` steps 5 and 6 stamp the role + per-account tfstate backend into each of the four CT-core accounts sequentially via `_bootstrap-target.yaml` with `fallback_role=OrganizationAccountAccessRole`. Per-account stack YAML under `stacks/orgs/<org>/core/<account>/` declares `iam-deployment-roles/target` with the `bootstrap` identity pinned; the component body is identical to the vended-account variant. `AtmosReadAllStateRole` placement matches `atmos-model.md §9.3.2` — decrypt-only cross-account reader with `kms:ViaService` condition and a permissions-boundary denying all writes. `mapping.md §8` deployment-roles row expanded accordingly. |
+| review.md Blocker 4 — `AtmosDeploymentRole` in CT-mgmt / audit / log-archive | Resolved §3.1 + §4.6 + §5.8 (task #10). §4.6.1 is the canonical role-placement matrix covering `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole` (all in atmos-aft mgmt, from `iam-deployment-roles/central`), `AtmosDeploymentRole` + `AtmosDeploymentRole-ReadOnly` (in all five account classes, from `iam-deployment-roles/target`), and the two bootstrap-only CT-vended roles (`AWSControlTowerExecution`, `OrganizationAccountAccessRole`). §4.6.2 lists which components require `AtmosDeploymentRole` per class. Trust policy template with `sts:ExternalId` guardrail for the four CT-core placements is in §4.6. `bootstrap.yaml` steps 5 and 6 stamp the role + per-account tfstate backend into each of the four CT-core accounts sequentially via `_bootstrap-target.yaml` with `fallback_role=OrganizationAccountAccessRole`. Per-account stack YAML under `stacks/orgs/<org>/core/<account>/` declares `iam-deployment-roles/target` with the `bootstrap` identity pinned; the component body is identical to the vended-account variant. `AtmosReadAllStateRole` placement matches `atmos-model.md §9.3.2` — decrypt-only cross-account reader with `kms:ViaService` condition and a permissions-boundary denying all writes. `mapping.md §8` deployment-roles row expanded accordingly. |
 | review.md Blocker 5 — `destroy-account.yaml` async correctness | Resolved §5.7. Added `wait-for-suspended` polling job (45-min timeout on `aws organizations describe-account` returning `SUSPENDED`), `finalize` job writes `status=destroyed` only after polling succeeds, failure path writes `status=destroy-stuck` and opens a tagged issue. Added 7-day cooldown PR check on `pr.yaml` to block re-adding a just-destroyed stack's email. |
 | review.md Blocker 5 — `push-main.yaml` permissions | Resolved §5.2. Explicit `permissions: { contents: read, id-token: write, actions: write }`. Actor-change documented; `triggered_by_sha` and `triggered_by_commit_author` written to SSM so the audit trail survives the `github-actions[bot]` actor on dispatched runs. Optional PAT override via `secrets.WORKFLOW_DISPATCH_PAT` for organisations that require the human actor on child runs. |
 | review.md Blocker 6 — three-phase security ordering | Resolved §6.10 + §3.2 DAG. New reusable workflow `_apply-security-service.yaml` enforces phase-1 (mgmt) → propagate → phase-2 (audit) → phase-3 (member) with hard `needs:` edges. Provision-account job 7 split into 7a (config-rules) → 7b (guardduty) → 7c (security-hub) → 7d (inspector2); per-account runs use `skip_if_already_applied=true` to short-circuit to phase 3 only. Bootstrap runs phase-1+2 per service once at first-run (§5.8 step 5) against the CT-managed audit account. |
