@@ -3,7 +3,7 @@
 
 module "trail_bucket" {
   source  = "cloudposse/cloudtrail-s3-bucket/aws"
-  version = "1.2.0"
+  version = "0.32.0"
 
   force_destroy = false
 

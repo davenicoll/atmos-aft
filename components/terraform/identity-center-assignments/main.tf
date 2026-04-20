@@ -1,10 +1,6 @@
 module "assignments" {
-  source  = "cloudposse/sso/aws"
+  source  = "cloudposse/sso/aws//modules/account-assignments"
   version = "1.2.0"
 
-  # Permission-set definitions are owned by identity-center-permission-sets; skip here.
-  permission_sets     = []
   account_assignments = var.account_assignments
-
-  context = module.this.context
 }

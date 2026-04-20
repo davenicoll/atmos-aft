@@ -8,7 +8,7 @@ module "logging_bucket" {
   acl                           = "private"
   versioning_enabled            = true
   sse_algorithm                 = var.sse_algorithm
-  kms_master_key_arn            = var.kms_master_key_arn
+  kms_master_key_arn            = var.kms_master_key_arn == null ? "" : var.kms_master_key_arn
   force_destroy                 = false
   allow_ssl_requests_only       = true
   lifecycle_configuration_rules = var.lifecycle_rules
@@ -17,10 +17,10 @@ module "logging_bucket" {
   ignore_public_acls            = true
   restrict_public_buckets       = true
 
-  logging = var.access_log_bucket_name == null ? null : {
+  logging = var.access_log_bucket_name == null ? [] : [{
     bucket_name = var.access_log_bucket_name
     prefix      = var.access_log_prefix
-  }
+  }]
 
   context = module.this.context
 }

@@ -6,5 +6,8 @@ module "cis_rules" {
   source  = "cloudposse/config/aws//modules/cis-1-2-rules"
   version = "1.6.1"
 
+  support_policy_arn     = var.support_policy_arn
+  cloudtrail_bucket_name = var.cloudtrail_bucket_name
+
   context = module.this.context
 }

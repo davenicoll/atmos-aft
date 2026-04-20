@@ -1,6 +1,6 @@
 output "parameter_arns" {
   description = "Map of parameter name → ARN."
-  value       = try(module.parameters.names, {})
+  value       = try(module.parameters.arn_map, {})
 }
 
 output "parameter_names" {

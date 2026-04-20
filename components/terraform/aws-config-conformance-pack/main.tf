@@ -4,7 +4,8 @@ module "pack" {
   source  = "cloudposse/config/aws//modules/conformance-pack"
   version = "1.6.1"
 
-  conformance_pack = var.conformance_pack
+  conformance_pack    = var.conformance_pack_url
+  parameter_overrides = var.parameter_overrides
 
   context = module.this.context
 }

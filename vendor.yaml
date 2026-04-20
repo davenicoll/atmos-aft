@@ -120,7 +120,7 @@ spec:
       tags: ["audit"]
 
     - component: "cloudtrail-s3-bucket"
-      source: "github.com/cloudposse/terraform-aws-cloudtrail-s3-bucket.git//?ref=1.2.0"
+      source: "github.com/cloudposse/terraform-aws-cloudtrail-s3-bucket.git//?ref=v0.32.0"
       targets:
         - "vendor/cloudposse/cloudtrail-s3-bucket/"
       included_paths:
