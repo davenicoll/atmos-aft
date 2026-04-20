@@ -1,14 +1,18 @@
 # Wraps cloudposse/terraform-aws-config's `conformance-pack` submodule only.
-# create_recorder / create_iam_role are defence-in-depth defaults — CT owns
-# the recorder and its IAM role. required_ct_flags.rego blocks overrides.
+# The submodule deploys an AWS Config conformance pack from a template URL;
+# it does NOT create a recorder or IAM role (CT owns both), so no
+# create_recorder / create_iam_role flags are needed here.
+#
+# `conformance_pack_url` is required — every consuming stack must set it to a
+# real template URL (e.g. one of the AWS-sample operational-best-practices
+# packs under s3://awsconfigconforms-<region>/... or a custom template). The
+# defaults block leaves it empty so an accidental import without override
+# fails loudly at terraform plan instead of silently deploying nothing.
 components:
   terraform:
     aws-config-conformance-pack:
       metadata:
         component: aws-config-conformance-pack
       vars:
-        create_recorder: false
-        create_iam_role: false
-        conformance_pack:
-          name: operational-best-practices
-          template_body_path: ""
+        conformance_pack_url: ""
+        parameter_overrides: {}

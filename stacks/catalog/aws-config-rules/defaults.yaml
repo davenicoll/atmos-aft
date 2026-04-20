@@ -1,13 +1,15 @@
 # Wraps cloudposse/terraform-aws-config's `cis-1-2-rules` submodule only.
-# CT manages the AWS Config recorder itself — do NOT set vars that would try
-# to create one here. Enforced by required_ct_flags.rego. The two flags below
-# are defence-in-depth defaults so a stack-level override can't accidentally
-# stamp a recorder/role that collides with the CT-managed ones.
+# The submodule deploys AWS Config managed/custom rules for CIS 1.2; it does
+# NOT create a recorder or IAM role (CT owns both), so no create_recorder /
+# create_iam_role flags are needed here — those belonged to the top-level
+# terraform-aws-config module, which #36 deliberately stepped away from.
+#
+# `support_policy_arn` and `cloudtrail_bucket_name` are required by the
+# submodule (see components/terraform/aws-config-rules/variables.tf); every
+# consuming stack must set them to the real values for its account.
 components:
   terraform:
     aws-config-rules:
       metadata:
         component: aws-config-rules
-      vars:
-        create_recorder: false
-        create_iam_role: false
+      vars: {}

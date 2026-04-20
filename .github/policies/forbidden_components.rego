@@ -53,3 +53,45 @@ _component_source(comp) := src if {
 _declared_resource_types(comp) := types if {
 	types := comp.metadata.resource_types
 } else := []
+
+# Structural guard against a future engineer wrapping the top-level
+# `cloudposse/config/aws` module (which always creates an AWS Config
+# recorder + IAM role that collide with Control Tower's). Submodule sources
+# like `cloudposse/config/aws//modules/cis-1-2-rules` are recorder-free and
+# stay allowed — the `//modules/` anchor is the structural signal.
+#
+# Components opt in by populating `metadata.terraform_sources` with the raw
+# `source = "..."` strings from their main.tf — same convention as
+# `metadata.resource_types` above. See module-inventory.md §0.2.
+forbidden_top_level_source_prefixes := {
+	"cloudposse/config/aws",
+}
+
+deny contains msg if {
+	some stack_name, stack in input
+	some comp_name, comp in stack.components.terraform
+	some src in _declared_terraform_sources(comp)
+	_is_forbidden_top_level_source(src)
+	msg := sprintf(
+		"stack %q component %q sources forbidden top-level module %q — use a specific `//modules/...` submodule (see module-inventory.md §0.2)",
+		[stack_name, comp_name, src],
+	)
+}
+
+_declared_terraform_sources(comp) := srcs if {
+	srcs := comp.metadata.terraform_sources
+} else := []
+
+_is_forbidden_top_level_source(src) if {
+	stripped := _strip_version_suffix(src)
+	some prefix in forbidden_top_level_source_prefixes
+	startswith(stripped, prefix)
+	not contains(stripped, "//modules/")
+}
+
+# Sources may carry a `?ref=...` pin; everything after `?` is metadata, not
+# path, so split it off before pattern-matching the path itself.
+_strip_version_suffix(src) := stripped if {
+	parts := split(src, "?")
+	stripped := parts[0]
+}
