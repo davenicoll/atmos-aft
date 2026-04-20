@@ -83,7 +83,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          atmos describe stacks --format json \
+          atmos describe stacks --format json --logs-level Error 2>/dev/null \
             | conftest test --parser json --policy .github/policies --all-namespaces -
 
   act:

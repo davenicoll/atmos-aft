@@ -53,7 +53,7 @@ runs:
       run: |
         set -euo pipefail
         fallback_atmos="1.100.0"
-        fallback_tf="1.9.8"
+        fallback_tf="1.14.9"
         atmos_v="$INPUT_ATMOS_VERSION"
         tf_v="$INPUT_TF_VERSION"
         if [[ -z "$atmos_v" && -f "$ATMOS_CONFIG" ]]; then

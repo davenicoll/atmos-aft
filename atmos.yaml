@@ -12,6 +12,7 @@ components:
     auto_generate_backend_file: true
     append_user_agent: "atmos-aft/0.1 (https://github.com/davenicoll/atmos-aft)"
     command: "terraform"
+    version: "1.14.9"
 
 stacks:
   base_path: "stacks"
