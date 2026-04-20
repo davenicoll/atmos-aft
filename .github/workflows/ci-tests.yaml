@@ -84,7 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           atmos describe stacks --format json \
-            | conftest test --policy .github/policies --all-namespaces -
+            | conftest test --parser json --policy .github/policies --all-namespaces -
 
   act:
     name: act (workflow smoke)

@@ -2,11 +2,11 @@ module "security_hub" {
   source  = "cloudposse/security-hub/aws"
   version = "0.12.2"
 
-  enabled_standards        = var.enabled_standards
+  enabled_standards                 = var.enabled_standards
   create_organization_admin_account = false # handled externally — see README
-  finding_aggregator_enabled = var.finding_aggregator_enabled
-  finding_aggregator_linking_mode = var.finding_aggregator_linking_mode
-  finding_aggregator_regions      = var.finding_aggregator_regions
+  finding_aggregator_enabled        = var.finding_aggregator_enabled
+  finding_aggregator_linking_mode   = var.finding_aggregator_linking_mode
+  finding_aggregator_regions        = var.finding_aggregator_regions
 
   context = module.this.context
 }

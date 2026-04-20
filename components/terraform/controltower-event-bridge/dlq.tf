@@ -5,7 +5,7 @@ resource "aws_sqs_queue" "dlq" {
   count = local.enabled ? 1 : 0
 
   name                       = "${module.this.id}-ct-dispatch-dlq"
-  message_retention_seconds  = 1209600  # 14 days
+  message_retention_seconds  = 1209600 # 14 days
   visibility_timeout_seconds = 900
   sqs_managed_sse_enabled    = true
 

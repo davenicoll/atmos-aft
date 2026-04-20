@@ -34,8 +34,8 @@ data "aws_iam_policy_document" "eventbridge_invoke" {
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       local.app_mode
-        ? "${aws_secretsmanager_secret.github_installation_token[0].arn}*"
-        : "${aws_secretsmanager_secret.github_pat[0].arn}*",
+      ? "${aws_secretsmanager_secret.github_installation_token[0].arn}*"
+      : "${aws_secretsmanager_secret.github_pat[0].arn}*",
     ]
   }
 

@@ -4,8 +4,6 @@ A replacement for [AWS Control Tower Account Factory for Terraform (AFT)](https:
 
 atmos-aft keeps the AFT feature surface — account vending, baseline, feature options, global and per-account customizations, drift detection — and swaps the runtime substrate. AWS CodeBuild + CodePipeline + Step Functions + DynamoDB + Lambda become GitHub Actions workflows, Atmos stack configuration, and Git.
 
-> **Status:** Phase 2 complete. This README is reconciled against the shipped `.github/workflows/`, `components/terraform/`, and `stacks/` trees. See `docs/architecture/` for the source-of-truth design specs.
-
 ---
 
 ## Table of contents

@@ -4,10 +4,10 @@
 #   - "member"        → per-member association
 
 locals {
-  enabled     = module.this.enabled
-  is_mgmt     = var.role == "management"
-  is_deleg    = var.role == "delegated"
-  is_member   = var.role == "member"
+  enabled   = module.this.enabled
+  is_mgmt   = var.role == "management"
+  is_deleg  = var.role == "delegated"
+  is_member = var.role == "member"
 }
 
 resource "aws_inspector2_delegated_admin_account" "this" {
@@ -20,10 +20,10 @@ resource "aws_inspector2_organization_configuration" "this" {
   count = local.enabled && local.is_deleg ? 1 : 0
 
   auto_enable {
-    ec2          = var.auto_enable_ec2
-    ecr          = var.auto_enable_ecr
-    lambda       = var.auto_enable_lambda
-    lambda_code  = var.auto_enable_lambda_code
+    ec2         = var.auto_enable_ec2
+    ecr         = var.auto_enable_ecr
+    lambda      = var.auto_enable_lambda
+    lambda_code = var.auto_enable_lambda_code
   }
 }
 

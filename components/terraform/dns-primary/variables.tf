@@ -9,8 +9,8 @@ variable "zone_name" {
 }
 
 variable "comment" {
-  type        = string
-  default     = "Atmos-AFT primary zone"
+  type    = string
+  default = "Atmos-AFT primary zone"
 }
 
 variable "target_role_arn" {

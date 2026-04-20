@@ -20,8 +20,8 @@ locals {
       Condition = { Bool = { "aws:SecureTransport" = "false" } }
     },
     {
-      Sid    = "AllowReadAllStateRoleRead"
-      Effect = "Allow"
+      Sid       = "AllowReadAllStateRoleRead"
+      Effect    = "Allow"
       Principal = { AWS = local.readall_role_principal }
       Action = [
         "s3:GetObject",

@@ -15,7 +15,7 @@ locals {
   # CT event patterns we forward. Matches aws.controltower service events
   # that carry account-lifecycle semantics.
   event_pattern = jsonencode({
-    source      = ["aws.controltower"]
+    source = ["aws.controltower"]
     detail-type = [
       "AWS Service Event via CloudTrail",
     ]
@@ -57,12 +57,12 @@ resource "aws_cloudwatch_event_target" "github_dispatch" {
   # Event types are dynamic per CT event name, handled by the downstream workflow.
   input_transformer {
     input_paths = {
-      event_id              = "$.id"
-      event_name            = "$.detail.eventName"
-      account_id            = "$.detail.serviceEventDetails.createManagedAccountStatus.account.accountId"
-      account_email         = "$.detail.serviceEventDetails.createManagedAccountStatus.account.accountEmail"
-      ou_name               = "$.detail.serviceEventDetails.createManagedAccountStatus.organizationalUnit.organizationalUnitName"
-      ou_id                 = "$.detail.serviceEventDetails.createManagedAccountStatus.organizationalUnit.organizationalUnitId"
+      event_id               = "$.id"
+      event_name             = "$.detail.eventName"
+      account_id             = "$.detail.serviceEventDetails.createManagedAccountStatus.account.accountId"
+      account_email          = "$.detail.serviceEventDetails.createManagedAccountStatus.account.accountEmail"
+      ou_name                = "$.detail.serviceEventDetails.createManagedAccountStatus.organizationalUnit.organizationalUnitName"
+      ou_id                  = "$.detail.serviceEventDetails.createManagedAccountStatus.organizationalUnit.organizationalUnitId"
       provisioned_product_id = "$.detail.serviceEventDetails.createManagedAccountStatus.provisionedProductId"
     }
     input_template = <<-EOT

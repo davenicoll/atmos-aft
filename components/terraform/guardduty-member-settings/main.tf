@@ -7,8 +7,8 @@ module "guardduty_member" {
   source  = "cloudposse/guardduty/aws"
   version = "1.0.0"
 
-  finding_publishing_frequency = var.finding_publishing_frequency
-  auto_enable_organization_members = "NONE"  # member-level config only
+  finding_publishing_frequency     = var.finding_publishing_frequency
+  auto_enable_organization_members = "NONE" # member-level config only
 
   s3_protection_enabled       = var.s3_protection_enabled
   eks_protection_enabled      = var.eks_protection_enabled

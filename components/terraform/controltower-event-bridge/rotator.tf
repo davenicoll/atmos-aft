@@ -77,10 +77,10 @@ resource "aws_lambda_function" "rotator" {
 
   environment {
     variables = {
-      APP_ID                = var.github_app_id
-      APP_INSTALLATION_ID   = var.github_app_installation_id
-      PEM_SECRET_ARN        = aws_secretsmanager_secret.github_app_private_key[0].arn
-      TOKEN_SECRET_ARN      = aws_secretsmanager_secret.github_installation_token[0].arn
+      APP_ID              = var.github_app_id
+      APP_INSTALLATION_ID = var.github_app_installation_id
+      PEM_SECRET_ARN      = aws_secretsmanager_secret.github_app_private_key[0].arn
+      TOKEN_SECRET_ARN    = aws_secretsmanager_secret.github_installation_token[0].arn
     }
   }
 
@@ -151,7 +151,7 @@ resource "aws_cloudwatch_metric_alarm" "rotator_staleness" {
   evaluation_periods  = 1
   metric_name         = "Invocations"
   namespace           = "AWS/Lambda"
-  period              = 2100  # 35 min
+  period              = 2100 # 35 min
   statistic           = "Sum"
   threshold           = 1
   treat_missing_data  = "breaching"

@@ -4,8 +4,8 @@ variable "region" {
 }
 
 variable "description" {
-  type        = string
-  default     = "Org-wide IP address manager."
+  type    = string
+  default = "Org-wide IP address manager."
 }
 
 variable "operating_regions" {

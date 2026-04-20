@@ -47,8 +47,8 @@ data "aws_iam_policy_document" "central_trust" {
 
 data "aws_iam_policy_document" "central_assume_targets" {
   statement {
-    sid    = "AllowAssumeIntoTargetAccounts"
-    effect = "Allow"
+    sid     = "AllowAssumeIntoTargetAccounts"
+    effect  = "Allow"
     actions = ["sts:AssumeRole"]
     resources = [
       "arn:aws:iam::*:role/AtmosDeploymentRole",
@@ -58,9 +58,9 @@ data "aws_iam_policy_document" "central_assume_targets" {
   }
 
   statement {
-    sid    = "AllowAssumeLocalReadAll"
-    effect = "Allow"
-    actions = ["sts:AssumeRole"]
+    sid       = "AllowAssumeLocalReadAll"
+    effect    = "Allow"
+    actions   = ["sts:AssumeRole"]
     resources = [aws_iam_role.read_all_state[0].arn]
   }
 }
@@ -225,8 +225,8 @@ data "aws_iam_policy_document" "read_all_inline" {
 
 data "aws_iam_policy_document" "read_all_boundary" {
   statement {
-    sid     = "AllowReadActions"
-    effect  = "Allow"
+    sid    = "AllowReadActions"
+    effect = "Allow"
     actions = [
       "s3:Get*",
       "s3:List*",

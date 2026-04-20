@@ -4,7 +4,7 @@ locals {
   # ExternalId is required for the four CT-core placements (extra guardrail
   # given those accounts predate Atmos). Vended accounts skip it because the
   # fresh account ID itself is the uniqueness signal.
-  ct_core_classes = ["ct-mgmt", "aft-mgmt", "audit", "log-archive"]
+  ct_core_classes     = ["ct-mgmt", "aft-mgmt", "audit", "log-archive"]
   require_external_id = contains(local.ct_core_classes, var.account_class)
 
   central_role_arn = "arn:aws:iam::${var.aft_mgmt_account_id}:role/AtmosCentralDeploymentRole"
