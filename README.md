@@ -232,6 +232,8 @@ Inputs in atmos-aft split across three surfaces:
 | `AFT_BOOTSTRAP_ACCESS_KEY_ID` | repo secret | string | — | Used only by `bootstrap.yaml` on first run. |
 | `AFT_BOOTSTRAP_SECRET_ACCESS_KEY` | repo secret | string | — | Paired with the above. Rotate out after bootstrap. |
 | `TERRAFORM_CLOUD_TOKEN` | repo secret | string | — | Required when `terraform_distribution=tfc|tfe`. Also sensitive in state. |
+| `terraform_org_name` | `bootstrap.yaml` input | string | — | Required when `terraform_distribution=tfc|tfe`. HCP Terraform organisation name; maps to upstream AFT's `terraform_org_name`. |
+| `terraform_project_name` | `bootstrap.yaml` input | string | `Default Project` | Required when `terraform_distribution=tfc|tfe`. HCP Terraform project containing atmos-aft workspaces; used in the OIDC `sub` claim condition on `AtmosCentralDeploymentRole`. Must exist pre-deploy. Maps to upstream AFT's `terraform_project_name`. |
 | `AFT_PROVISION_PARALLELISM` | repo var | number | `1` | Global single-lane default; widened in phase 2 after validation. |
 | `AFT_CUSTOMIZE_PARALLELISM` | repo var | number | `4` | Per-scope matrix `max-parallel`. |
 
@@ -284,10 +286,11 @@ Intentional cuts; these have no analogue in atmos-aft:
 | `aft_codebuild_compute_type`, `global_codebuild_timeout` | GHA runner tier is controlled in `.github/workflows/*.yml`. |
 | `concurrent_account_factory_actions` | `AFT_PROVISION_PARALLELISM` repo variable; per-concurrency-group. |
 | `terraform_oidc_*` | Replaced by GitHub OIDC (first-class; `terraform_oidc_integration` becomes trivially `true` when using TFC). |
-| `backup_recovery_point_retention` | Not applicable — no AFT-owned DynamoDB tables. |
+| `backup_recovery_point_retention` | Not applicable — no AFT-owned DynamoDB tables (DDB dropped per design decision #8; replaced by Git + SSM as the request + metadata plane). |
+| `tf_backend_secondary_region` | Not applicable — atmos-aft is single-region in Phase 1 per `docs/architecture/atmos-model.md` §9.3.4. State replication is a per-account bucket opt-in, not a global toggle. |
 | `cloudwatch_log_group_enable_cmk_encryption`, `sns_topic_enable_cmk_encryption` | Uniformly CMK-encrypted. No AWS-managed-key fallback. |
 
-Per-input parity is tracked in `docs/architecture/aft-readme-baseline.md` and will be audited formally in task #6 once phase 2 ships.
+Per-input parity is audited in [`docs/architecture/readme-audit.md`](docs/architecture/readme-audit.md).
 
 ---
 
@@ -404,7 +407,7 @@ Each leaf stack imports the org `_defaults`, its tenant/stage/region mixins, the
 | `aft-gbl-mgmt` | `aft/aft-mgmt/gbl.yaml` | `aft-mgmt` |
 | `core-gbl-mgmt` | `core/ct-mgmt/gbl.yaml` | `ct-mgmt` |
 | `core-gbl-audit` | `core/audit/gbl.yaml` | `audit` |
-| `core-gbl-log` | `core/log-archive/gbl.yaml` | `log-archive` |
+| `core-gbl-log-archive` | `core/log-archive/gbl.yaml` | `log-archive` |
 | `plat-use1-dev` | `plat/dev/us-east-1.yaml` | `vended` |
 | `plat-use1-prod` | `plat/prod/us-east-1.yaml` | `vended` |
 

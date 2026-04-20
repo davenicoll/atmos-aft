@@ -35,6 +35,11 @@ test_allows_multiple_valid_stacks if {
 	count(result) == 0
 }
 
+test_allows_kebab_stage_log_archive if {
+	result := naming.deny with input as {"core-gbl-log-archive": {}}
+	count(result) == 0
+}
+
 # --- negative cases (should deny) ------------------------------------------
 
 test_denies_two_segment_name if {
