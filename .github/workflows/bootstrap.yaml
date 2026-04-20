@@ -1,0 +1,283 @@
+name: bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      aft_mgmt_account_id:
+        required: true
+        type: string
+      aft_mgmt_region:
+        required: true
+        type: string
+      separate_aft_mgmt_account:
+        required: true
+        type: boolean
+        default: true
+      terraform_distribution:
+        required: true
+        type: choice
+        options: [oss, tfc]
+        default: oss
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: bootstrap
+  cancel-in-progress: false
+
+jobs:
+  precheck:
+    name: precheck CT core accounts ACTIVE
+    runs-on: ubuntu-latest
+    environment: bootstrap
+    timeout-minutes: 10
+    outputs:
+      aft_mgmt_stack: ${{ steps.resolve.outputs.aft_mgmt_stack }}
+      ct_mgmt_stack: ${{ steps.resolve.outputs.ct_mgmt_stack }}
+      audit_stack: ${{ steps.resolve.outputs.audit_stack }}
+      log_archive_stack: ${{ steps.resolve.outputs.log_archive_stack }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: access_key
+          region: ${{ inputs.aft_mgmt_region }}
+          role_session_name: atmos-bootstrap-precheck
+      - id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Stack identity comes from vars.account_class pinned by
+          # stacks/catalog/account-classes/{ct-mgmt,aft-mgmt,audit,log-archive}.yaml.
+          # There is exactly one stack per CT core class; fail loudly otherwise.
+          stacks_json="$(atmos describe stacks --format json)"
+
+          resolve_stack() {
+            local class="$1"
+            local matches
+            matches=$(echo "$stacks_json" | jq -r --arg c "$class" \
+              'to_entries[] | select(.value.vars.account_class == $c) | .key')
+            local count
+            count=$(echo "$matches" | grep -c . || true)
+            if [[ "$count" -ne 1 ]]; then
+              echo "::error::expected exactly 1 stack with account_class=$class, found $count"
+              exit 1
+            fi
+            echo "$matches"
+          }
+
+          aft_mgmt_stack=$(resolve_stack aft-mgmt)
+          ct_mgmt_stack=$(resolve_stack ct-mgmt)
+          audit_stack=$(resolve_stack audit)
+          log_archive_stack=$(resolve_stack log-archive)
+
+          {
+            echo "aft_mgmt_stack=$aft_mgmt_stack"
+            echo "ct_mgmt_stack=$ct_mgmt_stack"
+            echo "audit_stack=$audit_stack"
+            echo "log_archive_stack=$log_archive_stack"
+          } >> "$GITHUB_OUTPUT"
+
+          # Emit IDs for the Organizations precheck below.
+          audit_id=$(echo "$stacks_json" | jq -r --arg s "$audit_stack" \
+            '.[$s].settings.audit_account_id // .[$s].vars.account_id // empty')
+          log_archive_id=$(echo "$stacks_json" | jq -r --arg s "$log_archive_stack" \
+            '.[$s].settings.log_archive_account_id // .[$s].vars.account_id // empty')
+          if [[ -z "$audit_id" || -z "$log_archive_id" ]]; then
+            echo "::error::could not resolve audit/log-archive account IDs from stack settings"
+            exit 1
+          fi
+          {
+            echo "audit_account_id=$audit_id"
+            echo "log_archive_account_id=$log_archive_id"
+          } >> "$GITHUB_OUTPUT"
+      - name: verify audit + log-archive ACTIVE
+        shell: bash
+        env:
+          AUDIT_ID: ${{ steps.resolve.outputs.audit_account_id }}
+          LOG_ARCHIVE_ID: ${{ steps.resolve.outputs.log_archive_account_id }}
+        run: |
+          set -euo pipefail
+          for id in "$AUDIT_ID" "$LOG_ARCHIVE_ID"; do
+            status=$(aws organizations describe-account --account-id "$id" --query 'Account.Status' --output text)
+            if [[ "$status" != "ACTIVE" ]]; then
+              echo "::error::account $id is $status (expected ACTIVE); CT landing zone not ready"
+              exit 1
+            fi
+          done
+
+  oidc-provider:
+    name: 2. github-oidc-provider
+    needs: precheck
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
+      component: github-oidc-provider
+      environment: bootstrap
+      auth_mode: access_key
+    secrets: inherit
+
+  central-roles:
+    name: 3. iam-deployment-roles/central
+    needs: oidc-provider
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
+      component: iam-deployment-roles/central
+      environment: bootstrap
+      auth_mode: access_key
+    secrets: inherit
+
+  tfstate-backend-aft-mgmt:
+    name: 4. tfstate-backend (aft-mgmt)
+    needs: central-roles
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
+      component: tfstate-backend
+      environment: bootstrap
+    secrets: inherit
+
+  stamp-roles-ct-mgmt:
+    name: 5a. stamp AtmosDeploymentRole (CT-mgmt)
+    needs: tfstate-backend-aft-mgmt
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.ct_mgmt_stack }}
+      component: iam-deployment-roles/target
+    secrets: inherit
+
+  stamp-roles-aft-mgmt:
+    name: 5b. stamp AtmosDeploymentRole (AFT-mgmt)
+    needs: stamp-roles-ct-mgmt
+    if: inputs.separate_aft_mgmt_account == true
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
+      component: iam-deployment-roles/target
+    secrets: inherit
+
+  stamp-roles-audit:
+    name: 5c. stamp AtmosDeploymentRole (audit)
+    needs: [stamp-roles-ct-mgmt, stamp-roles-aft-mgmt]
+    if: always() && needs.stamp-roles-ct-mgmt.result == 'success' && (needs.stamp-roles-aft-mgmt.result == 'success' || needs.stamp-roles-aft-mgmt.result == 'skipped')
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.audit_stack }}
+      component: iam-deployment-roles/target
+    secrets: inherit
+
+  stamp-roles-log-archive:
+    name: 5d. stamp AtmosDeploymentRole (log-archive)
+    needs: stamp-roles-audit
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.log_archive_stack }}
+      component: iam-deployment-roles/target
+    secrets: inherit
+
+  stamp-tfstate-ct-mgmt:
+    name: 6a. stamp tfstate-backend (CT-mgmt)
+    needs: stamp-roles-log-archive
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.ct_mgmt_stack }}
+      component: tfstate-backend
+    secrets: inherit
+
+  stamp-tfstate-aft-mgmt:
+    name: 6b. stamp tfstate-backend (AFT-mgmt)
+    needs: stamp-tfstate-ct-mgmt
+    if: inputs.separate_aft_mgmt_account == true
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
+      component: tfstate-backend
+    secrets: inherit
+
+  stamp-tfstate-audit:
+    name: 6c. stamp tfstate-backend (audit)
+    needs: [stamp-tfstate-ct-mgmt, stamp-tfstate-aft-mgmt]
+    if: always() && needs.stamp-tfstate-ct-mgmt.result == 'success' && (needs.stamp-tfstate-aft-mgmt.result == 'success' || needs.stamp-tfstate-aft-mgmt.result == 'skipped')
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.audit_stack }}
+      component: tfstate-backend
+    secrets: inherit
+
+  stamp-tfstate-log-archive:
+    name: 6d. stamp tfstate-backend (log-archive)
+    needs: stamp-tfstate-audit
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ needs.precheck.outputs.log_archive_stack }}
+      component: tfstate-backend
+    secrets: inherit
+
+  security-guardduty:
+    name: 7a. security-service bootstrap (guardduty)
+    needs: stamp-tfstate-log-archive
+    uses: ./.github/workflows/_apply-security-service.yaml
+    with:
+      service: guardduty
+      mgmt_stack: ${{ needs.precheck.outputs.ct_mgmt_stack }}
+      audit_stack: ${{ needs.precheck.outputs.audit_stack }}
+      target_stacks: '[]'
+      skip_if_already_applied: false
+    secrets: inherit
+
+  security-security-hub:
+    name: 7b. security-service bootstrap (security-hub)
+    needs: security-guardduty
+    uses: ./.github/workflows/_apply-security-service.yaml
+    with:
+      service: security-hub
+      mgmt_stack: ${{ needs.precheck.outputs.ct_mgmt_stack }}
+      audit_stack: ${{ needs.precheck.outputs.audit_stack }}
+      target_stacks: '[]'
+      skip_if_already_applied: false
+    secrets: inherit
+
+  security-inspector2:
+    name: 7c. security-service bootstrap (inspector2)
+    needs: security-security-hub
+    uses: ./.github/workflows/_apply-security-service.yaml
+    with:
+      service: inspector2
+      mgmt_stack: ${{ needs.precheck.outputs.ct_mgmt_stack }}
+      audit_stack: ${{ needs.precheck.outputs.audit_stack }}
+      target_stacks: '[]'
+      skip_if_already_applied: false
+    secrets: inherit
+
+  summary:
+    name: 8. summary
+    needs:
+      - precheck
+      - central-roles
+      - tfstate-backend-aft-mgmt
+      - stamp-roles-ct-mgmt
+      - stamp-roles-audit
+      - stamp-roles-log-archive
+      - stamp-tfstate-log-archive
+      - security-inspector2
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - shell: bash
+        run: |
+          {
+            echo "# bootstrap summary"
+            echo ""
+            echo "- aft-mgmt stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}"
+            echo "- AtmosCentralDeploymentRole: arn:aws:iam::${{ inputs.aft_mgmt_account_id }}:role/AtmosCentralDeploymentRole"
+            echo "- central roles: ${{ needs.central-roles.result }}"
+            echo "- aft-mgmt primary tfstate: ${{ needs.tfstate-backend-aft-mgmt.result }}"
+            echo "- stamp AtmosDeploymentRole (ct-mgmt/audit/log-archive): ${{ needs.stamp-roles-ct-mgmt.result }} / ${{ needs.stamp-roles-audit.result }} / ${{ needs.stamp-roles-log-archive.result }}"
+            echo "- stamp tfstate-backend: ${{ needs.stamp-tfstate-log-archive.result }}"
+            echo "- security services (gd/sh/i2): ${{ needs.security-inspector2.result }}"
+          } >> "$GITHUB_STEP_SUMMARY"

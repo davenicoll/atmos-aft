@@ -1,0 +1,96 @@
+name: install-gha-cli-deps
+description: >-
+  Install ancillary CLIs used across workflows — jq, yq, conftest, opa, and
+  optional gh extensions — at pinned versions. `aws`, `atmos`, `terraform`,
+  and `gh` are already present on GitHub-hosted ubuntu runners or installed
+  by `setup-atmos`.
+
+inputs:
+  yq_version:
+    description: yq version (mikefarah/yq).
+    required: false
+    default: "4.44.3"
+  conftest_version:
+    description: Conftest version (open-policy-agent/conftest).
+    required: false
+    default: "0.56.0"
+  opa_version:
+    description: OPA version (open-policy-agent/opa).
+    required: false
+    default: "0.68.0"
+  install_jq:
+    description: Ensure jq is present. Hosted runners already include it.
+    required: false
+    default: "true"
+  gh_extensions:
+    description: Space-separated `owner/repo` gh extensions to install.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure jq
+      if: inputs.install_jq == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! command -v jq >/dev/null 2>&1; then
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends jq
+        fi
+
+    - name: Install yq
+      shell: bash
+      env:
+        YQ_VERSION: ${{ inputs.yq_version }}
+      run: |
+        set -euo pipefail
+        if command -v yq >/dev/null 2>&1 && yq --version 2>&1 | grep -q "$YQ_VERSION"; then
+          exit 0
+        fi
+        curl -sSL -o "$RUNNER_TEMP/yq" \
+          "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+        chmod +x "$RUNNER_TEMP/yq"
+        sudo mv "$RUNNER_TEMP/yq" /usr/local/bin/yq
+
+    - name: Install conftest
+      shell: bash
+      env:
+        CONFTEST_VERSION: ${{ inputs.conftest_version }}
+      run: |
+        set -euo pipefail
+        if command -v conftest >/dev/null 2>&1 && conftest --version 2>&1 | grep -q "$CONFTEST_VERSION"; then
+          exit 0
+        fi
+        tmp="$RUNNER_TEMP/conftest.tgz"
+        curl -sSL -o "$tmp" \
+          "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+        tar -xzf "$tmp" -C "$RUNNER_TEMP" conftest
+        sudo mv "$RUNNER_TEMP/conftest" /usr/local/bin/conftest
+
+    - name: Install opa
+      shell: bash
+      env:
+        OPA_VERSION: ${{ inputs.opa_version }}
+      run: |
+        set -euo pipefail
+        if command -v opa >/dev/null 2>&1 && opa version 2>&1 | grep -q "$OPA_VERSION"; then
+          exit 0
+        fi
+        curl -sSL -o "$RUNNER_TEMP/opa" \
+          "https://github.com/open-policy-agent/opa/releases/download/v${OPA_VERSION}/opa_linux_amd64_static"
+        chmod +x "$RUNNER_TEMP/opa"
+        sudo mv "$RUNNER_TEMP/opa" /usr/local/bin/opa
+
+    - name: Install gh extensions
+      if: inputs.gh_extensions != ''
+      shell: bash
+      env:
+        GH_EXTENSIONS: ${{ inputs.gh_extensions }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        for ext in $GH_EXTENSIONS; do
+          gh extension install "$ext"
+        done

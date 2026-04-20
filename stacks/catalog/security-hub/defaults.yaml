@@ -1,0 +1,11 @@
+components:
+  terraform:
+    security-hub:
+      metadata:
+        component: security-hub
+      vars:
+        enabled_standards:
+          - aws-foundational-security-best-practices/v/1.0.0
+          - cis-aws-foundations-benchmark/v/1.4.0
+        finding_aggregator_enabled: false
+        finding_aggregator_linking_mode: ALL_REGIONS

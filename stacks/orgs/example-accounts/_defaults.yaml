@@ -1,0 +1,22 @@
+import:
+  - orgs/_defaults
+
+vars:
+  namespace: acme
+  # Common tags merged into every AWS resource via the null-label pattern.
+  tags:
+    ManagedBy: atmos-aft
+    Org: example-accounts
+  # Topology — dual-account (dedicated AFT-mgmt). Flip to false to merge
+  # aft-mgmt workloads into ct-mgmt; see gha-design.md §3.3.
+  separate_aft_mgmt_account: true
+
+settings:
+  # Resolved at plan/apply time from SSM /aft/resources/*. Left as placeholders;
+  # bootstrap.yaml writes the real values to SSM after first run.
+  aft_mgmt_account_id: "222222222222"
+  ct_mgmt_account_id: "111111111111"
+  audit_account_id: "333333333333"
+  log_archive_account_id: "444444444444"
+  github_org: acme-corp
+  github_repo: atmos-aft

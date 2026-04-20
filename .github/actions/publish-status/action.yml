@@ -1,0 +1,103 @@
+name: publish-status
+description: >-
+  Publish provisioning status for an account to SSM under
+  /aft/account/<name>/ plus the triggered_by_* audit-trail metadata from
+  gha-design §5.2. Requires AWS credentials already configured.
+
+inputs:
+  account_name:
+    description: Logical account name (stack short name) used as the SSM path segment.
+    required: true
+  status:
+    description: >-
+      Status value. One of `provisioning`, `baseline-deployed`, `customized`,
+      `drift`, `failed`, `closing`, `destroyed`, `destroy-stuck`,
+      `ct-confirmed`.
+    required: true
+  stack:
+    description: Atmos stack name (recorded under /aft/account/<n>/stack).
+    required: false
+    default: ""
+  extra:
+    description: >-
+      Optional additional key=value pairs (newline-separated) to write under
+      /aft/account/<n>/. Values are written as SSM String parameters.
+    required: false
+    default: ""
+  region:
+    description: Region for the SSM parameter store. Defaults to $AWS_REGION.
+    required: false
+    default: ""
+
+outputs:
+  prefix:
+    description: SSM prefix written to.
+    value: ${{ steps.publish.outputs.prefix }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate status
+      shell: bash
+      env:
+        STATUS: ${{ inputs.status }}
+      run: |
+        set -euo pipefail
+        case "$STATUS" in
+          provisioning|baseline-deployed|customized|drift|failed|closing|destroyed|destroy-stuck|ct-confirmed) ;;
+          *) echo "::error::Invalid status '$STATUS'"; exit 1 ;;
+        esac
+
+    - name: Publish to SSM
+      id: publish
+      shell: bash
+      env:
+        ACCOUNT_NAME: ${{ inputs.account_name }}
+        STATUS: ${{ inputs.status }}
+        STACK: ${{ inputs.stack }}
+        EXTRA: ${{ inputs.extra }}
+        REGION: ${{ inputs.region }}
+        GH_SHA: ${{ github.sha }}
+        GH_ACTOR: ${{ github.actor }}
+        GH_RUN_ID: ${{ github.run_id }}
+        GH_WORKFLOW: ${{ github.workflow }}
+        COMMIT_AUTHOR: ${{ github.event.head_commit.author.email }}
+      run: |
+        set -euo pipefail
+        region="${REGION:-${AWS_REGION:-}}"
+        if [[ -z "$region" ]]; then
+          echo "::error::No region: pass 'region' input or set AWS_REGION"
+          exit 1
+        fi
+        prefix="/aft/account/${ACCOUNT_NAME}"
+        now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        commit_author="${COMMIT_AUTHOR:-$GH_ACTOR}"
+
+        put() {
+          aws ssm put-parameter \
+            --region "$region" \
+            --name "$1" \
+            --type String \
+            --value "$2" \
+            --overwrite >/dev/null
+        }
+
+        put "${prefix}/status" "$STATUS"
+        put "${prefix}/status-updated-at" "$now"
+        put "${prefix}/triggered_by_sha" "$GH_SHA"
+        put "${prefix}/triggered_by_commit_author" "$commit_author"
+        put "${prefix}/last-run-id" "$GH_RUN_ID"
+        put "${prefix}/last-workflow" "$GH_WORKFLOW"
+        if [[ -n "$STACK" ]]; then
+          put "${prefix}/stack" "$STACK"
+        fi
+
+        if [[ -n "$EXTRA" ]]; then
+          while IFS='=' read -r k v; do
+            [[ -z "$k" ]] && continue
+            put "${prefix}/${k}" "$v"
+          done <<< "$EXTRA"
+        fi
+
+        echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+        echo "Published status=$STATUS to $prefix" >> "$GITHUB_STEP_SUMMARY"

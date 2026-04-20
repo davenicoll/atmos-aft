@@ -1,0 +1,11 @@
+{
+  "inputs": {
+    "scope": "changed",
+    "dry_run": "true"
+  },
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "davenicoll/atmos-aft",
+    "default_branch": "main"
+  }
+}

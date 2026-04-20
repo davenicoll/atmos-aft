@@ -1,0 +1,7 @@
+components:
+  terraform:
+    tfstate-backend:
+      metadata:
+        component: tfstate-backend
+      vars:
+        aft_mgmt_account_id: !template "{{ .settings.aft_mgmt_account_id }}"

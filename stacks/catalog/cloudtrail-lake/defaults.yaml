@@ -1,0 +1,8 @@
+components:
+  terraform:
+    cloudtrail-lake:
+      metadata:
+        component: cloudtrail-lake
+      vars:
+        retention_days: 2555
+        multi_region_enabled: true

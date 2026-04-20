@@ -1,0 +1,17 @@
+{
+  "action": "ct-create-managed-account",
+  "client_payload": {
+    "event_id": "00000000-0000-0000-0000-000000000001",
+    "event_name": "CreateManagedAccount",
+    "account_id": "333333333333",
+    "account_email": "test+fixture@example.com",
+    "ou_name": "Sandbox",
+    "ou_id": "ou-xxxx-xxxxxxxx",
+    "provisioned_product_id": "pp-bbbbbbbbbbbbb",
+    "service_event_details": {}
+  },
+  "repository": {
+    "full_name": "davenicoll/atmos-aft",
+    "default_branch": "main"
+  }
+}

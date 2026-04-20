@@ -1,0 +1,261 @@
+name: destroy-account
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        required: true
+        type: string
+      confirm_account_id:
+        description: "Must match resolved account_id as a second-factor check"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+concurrency:
+  group: destroy-${{ inputs.stack }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: 1. verify confirm_account_id
+    runs-on: ubuntu-latest
+    environment: destroy
+    timeout-minutes: 5
+    outputs:
+      account_id: ${{ steps.v.outputs.account_id }}
+      account_name: ${{ steps.ctx.outputs.account_name }}
+      account_email: ${{ steps.ctx.outputs.account_email }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: ctx
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ inputs.stack }}
+          component: account-provisioning
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-destroy-${{ inputs.stack }}-verify
+      - id: v
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+          CONFIRM: ${{ inputs.confirm_account_id }}
+        run: |
+          set -euo pipefail
+          recorded=$(atmos terraform output account-provisioning -s "$STACK" --json | jq -r '.account_id.value')
+          if [[ "$recorded" != "$CONFIRM" ]]; then
+            echo "::error::confirm_account_id=$CONFIRM does not match recorded $recorded for stack $STACK"
+            exit 1
+          fi
+          echo "account_id=$recorded" >> "$GITHUB_OUTPUT"
+
+  customize-down:
+    name: 2. customize-down
+    needs: verify
+    uses: ./.github/workflows/_atmos-destroy.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: 'customizations/*'
+      confirm: true
+      environment: destroy
+    secrets: inherit
+
+  baseline-down:
+    name: 3. baseline-down
+    needs: customize-down
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - baseline-security/inspector2
+          - baseline-security/security-hub
+          - baseline-security/guardduty
+          - baseline-security/config-rules
+          - account-baseline
+    uses: ./.github/workflows/_atmos-destroy.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: ${{ matrix.component }}
+      confirm: true
+      environment: destroy
+    secrets: inherit
+
+  feature-options-down:
+    name: 4. feature-options-down
+    needs: baseline-down
+    uses: ./.github/workflows/_atmos-destroy.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: 'feature-options/*'
+      confirm: true
+      environment: destroy
+    secrets: inherit
+
+  iam-roles-down:
+    name: 5. iam-deployment-roles-down
+    needs: feature-options-down
+    uses: ./.github/workflows/_atmos-destroy.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: iam-deployment-roles/target
+      confirm: true
+      environment: destroy
+    secrets: inherit
+
+  tfstate-backend-down:
+    name: 6. tfstate-backend-down
+    needs: iam-roles-down
+    uses: ./.github/workflows/_atmos-destroy.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: tfstate-backend
+      confirm: true
+      environment: destroy
+    secrets: inherit
+
+  account-provisioning-destroy:
+    name: 7. account-provisioning-destroy
+    needs: [verify, tfstate-backend-down]
+    runs-on: ubuntu-latest
+    environment: destroy
+    timeout-minutes: 30
+    outputs:
+      record_id: ${{ steps.destroy.outputs.record_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-destroy-${{ inputs.stack }}-acct-provisioning
+      - id: destroy
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+        run: |
+          set -euo pipefail
+          atmos terraform destroy account-provisioning -s "$STACK" --auto-approve
+          record_id=$(atmos terraform output account-provisioning -s "$STACK" --json 2>/dev/null | jq -r '.record_id.value // empty' || echo "")
+          echo "record_id=$record_id" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/publish-status
+        with:
+          account_name: ${{ needs.verify.outputs.account_name }}
+          stack: ${{ inputs.stack }}
+          status: closing
+          extra: |
+            service_catalog_record_id=${{ steps.destroy.outputs.record_id }}
+
+  wait-for-suspended:
+    name: 8. wait-for-suspended
+    needs: [verify, account-provisioning-destroy]
+    runs-on: ubuntu-latest
+    environment: destroy
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-destroy-${{ inputs.stack }}-wait
+      - name: poll Service Catalog record
+        shell: bash
+        env:
+          RECORD_ID: ${{ needs.account-provisioning-destroy.outputs.record_id }}
+        run: |
+          set -euo pipefail
+          [[ -z "$RECORD_ID" ]] && { echo "::warning::no record_id; skipping SC poll"; exit 0; }
+          deadline=$((SECONDS + 600))
+          while (( SECONDS < deadline )); do
+            status=$(aws servicecatalog describe-record --id "$RECORD_ID" --query 'RecordDetail.Status' --output text 2>/dev/null || echo "UNKNOWN")
+            echo "SC record $RECORD_ID: $status"
+            case "$status" in
+              SUCCEEDED) exit 0 ;;
+              FAILED) echo "::error::Service Catalog record failed"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "::error::Service Catalog record did not reach SUCCEEDED within 10 min"
+          exit 1
+      - name: poll Organizations account status
+        shell: bash
+        env:
+          ACCOUNT_ID: ${{ inputs.confirm_account_id }}
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 1800))
+          while (( SECONDS < deadline )); do
+            status=$(aws organizations describe-account --account-id "$ACCOUNT_ID" --query 'Account.Status' --output text 2>/dev/null || echo "UNKNOWN")
+            echo "Organizations account $ACCOUNT_ID: $status"
+            [[ "$status" == "SUSPENDED" ]] && exit 0
+            sleep 60
+          done
+          echo "::error::account did not reach SUSPENDED within 30 min"
+          exit 1
+
+  finalize:
+    name: 9. finalize
+    needs: [verify, account-provisioning-destroy, wait-for-suspended]
+    if: always() && needs.account-provisioning-destroy.result == 'success'
+    runs-on: ubuntu-latest
+    environment: destroy
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-destroy-${{ inputs.stack }}-finalize
+      - name: resolve terminal status
+        id: st
+        shell: bash
+        env:
+          WAIT_RESULT: ${{ needs.wait-for-suspended.result }}
+        run: |
+          if [[ "$WAIT_RESULT" == "success" ]]; then
+            echo "status=destroyed" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=destroy-stuck" >> "$GITHUB_OUTPUT"
+          fi
+          echo "destroyed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/publish-status
+        with:
+          account_name: ${{ needs.verify.outputs.account_name }}
+          stack: ${{ inputs.stack }}
+          status: ${{ steps.st.outputs.status }}
+          extra: |
+            destroyed_at=${{ steps.st.outputs.destroyed_at }}
+            email=${{ needs.verify.outputs.account_email }}
+            service_catalog_record_id=${{ needs.account-provisioning-destroy.outputs.record_id }}
+      - name: open destroy-stuck issue
+        if: steps.st.outputs.status == 'destroy-stuck'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STACK: ${{ inputs.stack }}
+          ACCOUNT_ID: ${{ needs.verify.outputs.account_id }}
+          RECORD_ID: ${{ needs.account-provisioning-destroy.outputs.record_id }}
+        run: |
+          gh issue create \
+            --title "destroy-stuck: $STACK ($ACCOUNT_ID)" \
+            --label destroy-stuck \
+            --body "Stack: $STACK
+          Account: $ACCOUNT_ID
+          Service Catalog record: $RECORD_ID
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          The 45-minute wait-for-suspended budget was exhausted. Check CT status and re-run finalize when SUSPENDED is observed."

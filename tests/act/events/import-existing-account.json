@@ -1,0 +1,11 @@
+{
+  "inputs": {
+    "stack": "plat-ue1-prod",
+    "servicecatalog_provisioned_product_id": "pp-aaaaaaaaaaaaa"
+  },
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "davenicoll/atmos-aft",
+    "default_branch": "main"
+  }
+}

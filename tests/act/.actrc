@@ -1,0 +1,17 @@
+# act configuration — local GHA runner.
+# See https://github.com/nektos/act.
+#
+# Pinned image matches GitHub-hosted ubuntu-latest size. `act` ships three
+# images; we use the medium one because the micro image lacks aws/gh/jq.
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-24.04=catthehacker/ubuntu:act-latest
+-P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+
+# Apple silicon: act emits warnings without an explicit arch hint.
+--container-architecture linux/amd64
+
+# Re-use the repo's .env for convenience (developer-local only; CI ignores this file).
+--env-file .env.act
+
+# Silence act's verbose default output.
+--quiet

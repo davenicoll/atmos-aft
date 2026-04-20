@@ -1,0 +1,137 @@
+name: ct-lifecycle-event
+
+on:
+  repository_dispatch:
+    types:
+      - ct-create-managed-account
+      - ct-update-managed-account
+      - ct-register-organizational-unit
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+  issues: write
+
+concurrency:
+  group: ct-event-${{ github.event.client_payload.event_id }}
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    name: archive client_payload to S3
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-ct-event-archive
+      - shell: bash
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+          BUCKET: ${{ vars.CT_EVENTS_ARCHIVE_BUCKET }}
+          EVENT_ID: ${{ github.event.client_payload.event_id }}
+        run: |
+          set -euo pipefail
+          [[ -z "$BUCKET" ]] && { echo "::error::CT_EVENTS_ARCHIVE_BUCKET not set"; exit 1; }
+          date_path=$(date -u +'%Y/%m/%d')
+          key="${date_path}/${EVENT_ID}.json"
+          printf '%s' "$PAYLOAD" > "$RUNNER_TEMP/payload.json"
+          aws s3 cp "$RUNNER_TEMP/payload.json" "s3://${BUCKET}/${key}" --content-type application/json
+
+  classify:
+    name: classify event
+    needs: archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      action: ${{ steps.c.outputs.action }}
+      account_id: ${{ steps.c.outputs.account_id }}
+    steps:
+      - id: c
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event.client_payload.event_name }}
+          ACCOUNT_ID: ${{ github.event.client_payload.account_id }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            CreateManagedAccount) echo "action=correlate" >> "$GITHUB_OUTPUT" ;;
+            UpdateManagedAccount) echo "action=resync" >> "$GITHUB_OUTPUT" ;;
+            RegisterOrganizationalUnit) echo "action=archive-only" >> "$GITHUB_OUTPUT" ;;
+            *) echo "action=archive-only" >> "$GITHUB_OUTPUT" ;;
+          esac
+          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+
+  correlate:
+    name: correlate with SSM
+    needs: classify
+    if: needs.classify.outputs.action == 'correlate' || needs.classify.outputs.action == 'resync'
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 10
+    outputs:
+      stack: ${{ steps.cor.outputs.stack }}
+      needs_fanout: ${{ steps.cor.outputs.needs_fanout }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-ct-event-correlate
+      - id: cor
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACCOUNT_ID: ${{ needs.classify.outputs.account_id }}
+          ACTION: ${{ needs.classify.outputs.action }}
+        run: |
+          set -euo pipefail
+          status=$(aws ssm get-parameter --name "/aft/account/${ACCOUNT_ID}/status" --query 'Parameter.Value' --output text 2>/dev/null || echo "ABSENT")
+          stack=$(aws ssm get-parameter --name "/aft/account/${ACCOUNT_ID}/stack" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          echo "SSM status for $ACCOUNT_ID: $status"
+          if [[ "$status" == "ABSENT" ]]; then
+            echo "::warning::CT-managed account $ACCOUNT_ID not tracked in repo; opening issue"
+            gh issue create \
+              --title "ct-unmanaged-account: $ACCOUNT_ID" \
+              --label ct-unmanaged-account \
+              --body "CT emitted ${{ github.event.client_payload.event_name }} for account $ACCOUNT_ID but /aft/account/$ACCOUNT_ID/status is absent. Onboard via import-existing-account.yaml." \
+              || true
+            echo "needs_fanout=false" >> "$GITHUB_OUTPUT"
+            echo "stack=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$status" == "provisioning" ]]; then
+            aws ssm put-parameter --name "/aft/account/${ACCOUNT_ID}/status" --value ct-confirmed --type String --overwrite >/dev/null
+          elif [[ "$status" == "closing" ]]; then
+            echo "::warning::CT event received for account in status=closing; unexpected"
+          fi
+          echo "stack=$stack" >> "$GITHUB_OUTPUT"
+          if [[ "$ACTION" == "resync" && -n "$stack" ]]; then
+            echo "needs_fanout=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_fanout=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  fanout:
+    name: dispatch customize-fleet
+    needs: correlate
+    if: needs.correlate.outputs.needs_fanout == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_DISPATCH_PAT || secrets.GITHUB_TOKEN }}
+          STACK: ${{ needs.correlate.outputs.stack }}
+        run: |
+          gh workflow run customize-fleet.yaml \
+            --ref main \
+            -f "scope=stack:$STACK"

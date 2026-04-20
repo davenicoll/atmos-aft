@@ -1,0 +1,79 @@
+name: drift-detection
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+concurrency:
+  group: drift-detection
+  cancel-in-progress: true
+
+jobs:
+  list:
+    name: list (component, stack) pairs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.l.outputs.matrix }}
+      has_any: ${{ steps.l.outputs.has_any }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_READ_ALL_STATE_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-drift-list
+      - id: l
+        shell: bash
+        run: |
+          set -euo pipefail
+          atmos describe stacks --format json \
+            | jq -c '[to_entries[] | .key as $s | .value.components.terraform // {} | to_entries[] | {stack: $s, component: .key}]' \
+            > "$RUNNER_TEMP/pairs.json"
+          count=$(jq 'length' "$RUNNER_TEMP/pairs.json")
+          echo "has_any=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"include\":$(cat "$RUNNER_TEMP/pairs.json")}" >> "$GITHUB_OUTPUT"
+
+  plan:
+    name: plan (read-only)
+    needs: list
+    if: needs.list.outputs.has_any == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix: ${{ fromJSON(needs.list.outputs.matrix) }}
+    uses: ./.github/workflows/_atmos-plan.yaml
+    with:
+      stack: ${{ matrix.stack }}
+      component: ${{ matrix.component }}
+      upload_planfile: false
+      plan_store: none
+      central_role_arn: ${{ vars.ATMOS_PLAN_ONLY_ROLE_ARN }}
+      target_role_name: AtmosDeploymentRoleReadOnly
+    secrets: inherit
+
+  report-drift:
+    name: report drift
+    needs: plan
+    if: always() && needs.plan.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "::notice::drift-detection scan complete; per-pair plan results are aggregated by the plan matrix."
+          echo "# drift-detection summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Matrix result: ${{ needs.plan.result }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"

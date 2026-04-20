@@ -1,0 +1,107 @@
+name: post-plan-summary
+description: >-
+  Render an `atmos terraform plan` result into $GITHUB_STEP_SUMMARY and, on
+  pull-request runs, into a sticky PR comment. Optionally persists the
+  planfile for a later apply via
+  cloudposse/github-action-terraform-plan-storage.
+
+inputs:
+  plan_file:
+    description: Path to the Terraform planfile (binary, produced by `atmos terraform plan -out`).
+    required: true
+  stack:
+    description: Atmos stack name (shown in the summary heading).
+    required: true
+  component:
+    description: Atmos component name (shown in the summary heading).
+    required: true
+  working_directory:
+    description: Directory to run terraform show from. Defaults to the component directory.
+    required: false
+    default: "."
+  persist:
+    description: Whether to upload the planfile via cloudposse/github-action-terraform-plan-storage.
+    required: false
+    default: "false"
+  plan_storage_bucket:
+    description: S3 bucket for plan persistence. Required when `persist=true`.
+    required: false
+    default: ""
+  plan_storage_table:
+    description: DynamoDB table for plan metadata. Required when `persist=true`.
+    required: false
+    default: ""
+  comment:
+    description: Whether to post a sticky PR comment on pull_request events.
+    required: false
+    default: "true"
+
+outputs:
+  summary_path:
+    description: Path to the rendered markdown summary file.
+    value: ${{ steps.render.outputs.summary_path }}
+  has_changes:
+    description: "`true` when the plan contains add/change/destroy actions."
+    value: ${{ steps.render.outputs.has_changes }}
+
+runs:
+  using: composite
+  steps:
+    - name: Render plan to markdown
+      id: render
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        PLAN_FILE: ${{ inputs.plan_file }}
+        STACK: ${{ inputs.stack }}
+        COMPONENT: ${{ inputs.component }}
+      run: |
+        set -euo pipefail
+        summary="$RUNNER_TEMP/plan-summary-${COMPONENT//\//-}-${STACK}.md"
+        json="$(terraform show -json "$PLAN_FILE")"
+        add="$(echo "$json" | jq '[.resource_changes[]? | select(.change.actions | index("create"))] | length')"
+        chg="$(echo "$json" | jq '[.resource_changes[]? | select(.change.actions | index("update"))] | length')"
+        del="$(echo "$json" | jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length')"
+        txt="$(terraform show -no-color "$PLAN_FILE")"
+
+        {
+          echo "### Plan: \`${COMPONENT}\` @ \`${STACK}\`"
+          echo
+          echo "**Summary:** ${add} to add, ${chg} to change, ${del} to destroy."
+          echo
+          echo "<details><summary>Plan output</summary>"
+          echo
+          echo '```terraform'
+          echo "$txt"
+          echo '```'
+          echo
+          echo "</details>"
+        } > "$summary"
+
+        cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+
+        has_changes=false
+        if (( add + chg + del > 0 )); then has_changes=true; fi
+        {
+          echo "summary_path=$summary"
+          echo "has_changes=$has_changes"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Post sticky PR comment
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: plan-${{ inputs.component }}-${{ inputs.stack }}
+        path: ${{ steps.render.outputs.summary_path }}
+
+    - name: Persist planfile
+      if: inputs.persist == 'true'
+      uses: cloudposse/github-action-terraform-plan-storage@v1
+      with:
+        action: store
+        planPath: ${{ inputs.plan_file }}
+        component: ${{ inputs.component }}
+        stack: ${{ inputs.stack }}
+        commitSHA: ${{ github.sha }}
+        bucketName: ${{ inputs.plan_storage_bucket }}
+        tableName: ${{ inputs.plan_storage_table }}

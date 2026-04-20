@@ -1,0 +1,95 @@
+name: import-existing-account
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        required: true
+        type: string
+      servicecatalog_provisioned_product_id:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: import-${{ inputs.stack }}
+  cancel-in-progress: false
+
+jobs:
+  lookup:
+    name: lookup Service Catalog product
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-import-${{ inputs.stack }}-lookup
+      - shell: bash
+        env:
+          PP_ID: ${{ inputs.servicecatalog_provisioned_product_id }}
+        run: |
+          set -euo pipefail
+          aws servicecatalog describe-provisioned-product --id "$PP_ID" \
+            --query 'ProvisionedProductDetail.{Id:Id,Name:Name,Status:Status,CreatedTime:CreatedTime}' \
+            --output table
+
+  import:
+    name: terraform import
+    needs: lookup
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-import-${{ inputs.stack }}-import
+      - shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+          PP_ID: ${{ inputs.servicecatalog_provisioned_product_id }}
+        run: |
+          set -euo pipefail
+          atmos terraform import account-provisioning \
+            aws_servicecatalog_provisioned_product.this "$PP_ID" \
+            -s "$STACK"
+
+  plan:
+    name: plan (post-import sanity)
+    needs: import
+    uses: ./.github/workflows/_atmos-plan.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: account-provisioning
+      upload_planfile: false
+      plan_store: none
+    secrets: inherit
+
+  summary:
+    name: summary
+    needs: [import, plan]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - shell: bash
+        run: |
+          {
+            echo "# import-existing-account summary"
+            echo "- stack: ${{ inputs.stack }}"
+            echo "- provisioned product id: ${{ inputs.servicecatalog_provisioned_product_id }}"
+            echo "- import: ${{ needs.import.result }}"
+            echo "- post-import plan has_changes: ${{ needs.plan.outputs.has_changes }}"
+          } >> "$GITHUB_STEP_SUMMARY"

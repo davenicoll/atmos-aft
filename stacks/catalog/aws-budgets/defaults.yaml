@@ -1,0 +1,7 @@
+components:
+  terraform:
+    aws-budgets:
+      metadata:
+        component: aws-budgets
+      vars:
+        budgets: []

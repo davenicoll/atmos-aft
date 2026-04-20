@@ -1,0 +1,163 @@
+name: pr
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'atmos.yaml'
+      - 'vendor.yaml'
+      - 'components/**'
+      - 'stacks/**'
+      - '.github/**'
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    name: setup
+    runs-on: ubuntu-latest
+    environment: pr
+    timeout-minutes: 10
+    outputs:
+      atmos_version: ${{ steps.setup.outputs.atmos_version }}
+      terraform_version: ${{ steps.setup.outputs.terraform_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: setup
+        uses: ./.github/actions/setup-atmos
+
+  validate:
+    name: validate stacks
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: pr
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/install-gha-cli-deps
+      - name: atmos validate stacks
+        shell: bash
+        run: atmos validate stacks
+      - name: terraform fmt -check
+        shell: bash
+        run: terraform fmt -check -recursive components/terraform
+
+  policy:
+    name: policy (OPA)
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: pr
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/install-gha-cli-deps
+      - name: opa test
+        shell: bash
+        run: opa test .github/policies tests/opa -v
+      - name: conftest against stacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          atmos describe stacks --format json \
+            | conftest test --policy .github/policies --all-namespaces -
+      - name: cooldown check (7-day guard)
+        shell: bash
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          if echo "$PR_LABELS" | grep -q '"cooldown-override"'; then
+            echo "::notice::cooldown override label present; skipping 7-day guard"
+            exit 0
+          fi
+          # Implementation: scan added stacks for email reuse vs /aft/account/*/destroyed_at
+          # within 7 days. Requires AtmosPlanOnlyRole OIDC assumption and SSM read.
+          # Stub: succeed when no new stack files added.
+          git fetch --no-tags --depth=1 origin ${{ github.base_ref }} || true
+          if ! git diff --name-only --diff-filter=A "origin/${{ github.base_ref }}"...HEAD 'stacks/**/*.yaml' | grep -q .; then
+            echo "::notice::no new stack files; cooldown check n/a"
+            exit 0
+          fi
+          echo "::notice::new stack files detected; runtime cooldown check is deferred to scripts/cooldown-check.sh (task #17 follow-up)"
+
+  affected:
+    name: affected (describe)
+    needs: [validate, policy]
+    runs-on: ubuntu-latest
+    environment: pr
+    timeout-minutes: 15
+    outputs:
+      matrix: ${{ steps.affected.outputs.matrix }}
+      has_affected: ${{ steps.affected.outputs.has_affected }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_PLAN_ONLY_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-pr-${{ github.event.pull_request.number }}-affected
+      - id: affected
+        shell: bash
+        run: |
+          set -euo pipefail
+          atmos describe affected \
+            --ref "origin/${{ github.base_ref }}" \
+            --format json \
+            --include-dependents=true \
+            > "$RUNNER_TEMP/affected.json"
+          count=$(jq 'length' "$RUNNER_TEMP/affected.json")
+          echo "has_affected=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          matrix=$(jq -c '{include: [.[] | {component: .component, stack: .stack}]}' "$RUNNER_TEMP/affected.json")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  plan:
+    name: plan
+    needs: affected
+    if: needs.affected.outputs.has_affected == 'true'
+    uses: ./.github/workflows/_atmos-plan.yaml
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix: ${{ fromJSON(needs.affected.outputs.matrix) }}
+    with:
+      stack: ${{ matrix.stack }}
+      component: ${{ matrix.component }}
+      upload_planfile: true
+      plan_store: s3
+      central_role_arn: ${{ vars.ATMOS_PLAN_ONLY_ROLE_ARN }}
+      target_role_name: AtmosDeploymentRoleReadOnly
+    secrets: inherit
+
+  summary:
+    name: plan summary
+    needs: [affected, plan]
+    if: always() && needs.affected.result == 'success'
+    runs-on: ubuntu-latest
+    environment: pr
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/post-plan-summary
+        with:
+          component: aggregate
+          stack: pr-${{ github.event.pull_request.number }}

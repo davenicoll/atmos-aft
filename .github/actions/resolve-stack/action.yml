@@ -1,0 +1,134 @@
+name: resolve-stack
+description: >-
+  Resolve an Atmos stack name to its account_id, region, target role ARN,
+  and canonical stack name. Must run after setup-atmos. Does not require
+  AWS credentials — reads from atmos describe.
+
+inputs:
+  stack:
+    description: Atmos stack name (e.g. `core-use1-prod`) or component+stack selector to resolve.
+    required: true
+  component:
+    description: >-
+      Optional Atmos component name. When provided, `atmos describe component`
+      is used (which includes resolved vars from catalog); otherwise
+      `atmos describe stacks` is used to read the stack-level vars only.
+    required: false
+    default: ""
+  target_role_name:
+    description: >-
+      Name of the target-account role to use in the computed `target_role_arn`.
+      Defaults to `AtmosDeploymentRole` (the apply/deploy identity). Set to
+      `AtmosDeploymentRoleReadOnly` for plan-only invocations (pr.yaml,
+      drift-detection.yaml) per gha-design §4.3.
+    required: false
+    default: AtmosDeploymentRole
+  require_target:
+    description: >-
+      When `true` (default), fail if `vars.account_id` cannot be resolved. Set
+      to `false` for central-only components (`iam-deployment-roles/central`,
+      `tfstate-backend-central`, `github-oidc-provider`) that do not assume into
+      a target account. In that case, `account_id`, `account_name`, and
+      `target_role_arn` outputs are emitted empty and the caller runs under the
+      central-role creds already set by `configure-aws`.
+    required: false
+    default: "true"
+
+outputs:
+  account_id:
+    description: Account ID resolved from `vars.account_id`.
+    value: ${{ steps.resolve.outputs.account_id }}
+  account_name:
+    description: >-
+      Logical account name from `vars.account_name` (e.g. `plat-dev`). Used as the
+      `/aft/account/<name>/` SSM path segment. Empty for central-only stacks.
+    value: ${{ steps.resolve.outputs.account_name }}
+  account_email:
+    description: >-
+      Account email from `vars.account_email`. Populated for leaf stacks that
+      wrap `account-provisioning`; empty otherwise. Used by destroy-account to
+      seed the 7-day cooldown guard.
+    value: ${{ steps.resolve.outputs.account_email }}
+  region:
+    description: AWS region resolved from `vars.region`.
+    value: ${{ steps.resolve.outputs.region }}
+  target_role_arn:
+    description: ARN of AtmosDeploymentRole in the target account. Empty for central-only stacks.
+    value: ${{ steps.resolve.outputs.target_role_arn }}
+  stack_name:
+    description: Canonical stack name (echo of input, normalised).
+    value: ${{ steps.resolve.outputs.stack_name }}
+  bootstrap_role:
+    description: >-
+      Bootstrap-identity role name from `vars.bootstrap_role` — pinned per
+      account-class by `stacks/catalog/account-classes/*.yaml`
+      (`AWSControlTowerExecution` for vended accounts,
+      `OrganizationAccountAccessRole` for CT core accounts). Empty if the stack
+      does not set it.
+    value: ${{ steps.resolve.outputs.bootstrap_role }}
+  account_class:
+    description: Account class from `vars.account_class` (e.g. `vended`, `ct-mgmt`, `aft-mgmt`, `audit`, `log-archive`).
+    value: ${{ steps.resolve.outputs.account_class }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve stack metadata
+      id: resolve
+      shell: bash
+      env:
+        STACK: ${{ inputs.stack }}
+        COMPONENT: ${{ inputs.component }}
+        TARGET_ROLE_NAME: ${{ inputs.target_role_name }}
+        REQUIRE_TARGET: ${{ inputs.require_target }}
+      run: |
+        set -euo pipefail
+        if [[ -n "$COMPONENT" ]]; then
+          json="$(atmos describe component "$COMPONENT" -s "$STACK" --format json)"
+          account_id="$(echo "$json" | jq -r '.vars.account_id // .vars.tenant_account_id // ""')"
+          account_name="$(echo "$json" | jq -r '.vars.account_name // ""')"
+          account_email="$(echo "$json" | jq -r '.vars.account_email // ""')"
+          account_class="$(echo "$json" | jq -r '.vars.account_class // ""')"
+          bootstrap_role="$(echo "$json" | jq -r '.vars.bootstrap_role // ""')"
+          region="$(echo "$json" | jq -r '.vars.region // ""')"
+        else
+          json="$(atmos describe stacks -s "$STACK" --format json)"
+          account_id="$(echo "$json" | jq -r --arg s "$STACK" '.[$s].vars.account_id // ""')"
+          account_name="$(echo "$json" | jq -r --arg s "$STACK" '.[$s].vars.account_name // ""')"
+          account_email="$(echo "$json" | jq -r --arg s "$STACK" '.[$s].vars.account_email // ""')"
+          account_class="$(echo "$json" | jq -r --arg s "$STACK" '.[$s].vars.account_class // ""')"
+          bootstrap_role="$(echo "$json" | jq -r --arg s "$STACK" '.[$s].vars.bootstrap_role // ""')"
+          region="$(echo "$json" | jq -r --arg s "$STACK" '.[$s].vars.region // ""')"
+        fi
+
+        [[ "$account_id" == "null" ]] && account_id=""
+        [[ "$account_name" == "null" ]] && account_name=""
+        [[ "$account_email" == "null" ]] && account_email=""
+        [[ "$account_class" == "null" ]] && account_class=""
+        [[ "$bootstrap_role" == "null" ]] && bootstrap_role=""
+
+        if [[ "$REQUIRE_TARGET" == "true" && -z "$account_id" ]]; then
+          echo "::error::Could not resolve account_id for stack '$STACK' (pass require_target=false for central-only components)"
+          exit 1
+        fi
+        if [[ -z "$region" || "$region" == "null" ]]; then
+          echo "::error::Could not resolve region for stack '$STACK'"
+          exit 1
+        fi
+
+        if [[ -n "$account_id" ]]; then
+          target_role_arn="arn:aws:iam::${account_id}:role/${TARGET_ROLE_NAME}"
+        else
+          target_role_arn=""
+        fi
+
+        {
+          echo "account_id=$account_id"
+          echo "account_name=$account_name"
+          echo "account_email=$account_email"
+          echo "account_class=$account_class"
+          echo "bootstrap_role=$bootstrap_role"
+          echo "region=$region"
+          echo "target_role_arn=$target_role_arn"
+          echo "stack_name=$STACK"
+        } >> "$GITHUB_OUTPUT"

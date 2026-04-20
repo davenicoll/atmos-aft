@@ -1,0 +1,141 @@
+name: configure-aws
+description: >-
+  Configure AWS credentials for Atmos runs. Dispatches between OIDC (default)
+  and access-key (opt-in) modes and exposes the assumed AtmosCentralDeployment
+  role to subsequent steps. Sets ATMOS_AUTH_IDENTITY for the Terraform-level
+  auth chain.
+
+inputs:
+  mode:
+    description: >-
+      Auth mode. `oidc` uses the GitHub OIDC token; `access_key` uses the
+      bootstrap IAM user access keys read from the env. Defaults to the
+      AFT_AUTH_MODE env var, then to `oidc`.
+    required: false
+    default: ""
+  central_role_arn:
+    description: ARN of AtmosCentralDeploymentRole (assumed from OIDC or from the bootstrap user).
+    required: true
+  target_role_arn:
+    description: >-
+      ARN of the target-account role Terraform should assume after the central
+      hop. When non-empty, this action exports TF_VAR_target_role_arn so every
+      component's provider `dynamic "assume_role"` block resolves to this role
+      (see #26 and components/terraform/*/providers.tf). Pass empty for
+      components that stay in the central account (AFT-mgmt-local).
+    required: false
+    default: ""
+  region:
+    description: AWS region to configure.
+    required: true
+  role_session_name:
+    description: STS role session name. Defaults to atmos-<workflow>-<run_id>.
+    required: false
+    default: ""
+  identity:
+    description: >-
+      Atmos auth identity to activate for the Terraform-level chain. `default`
+      is the central→target path; `bootstrap` is central→AWSControlTowerExecution
+      (newly vended accounts) or central→OrganizationAccountAccessRole (CT core
+      accounts). See gha-design §4.5.
+    required: false
+    default: default
+
+outputs:
+  account_id:
+    description: Account ID reported by sts:GetCallerIdentity after credentials are configured.
+    value: ${{ steps.whoami.outputs.account_id }}
+  mode:
+    description: Resolved auth mode (`oidc` or `access_key`).
+    value: ${{ steps.resolve-mode.outputs.mode }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve mode and session name
+      id: resolve-mode
+      shell: bash
+      env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_SESSION: ${{ inputs.role_session_name }}
+        ENV_AUTH_MODE: ${{ env.AFT_AUTH_MODE }}
+        GH_WORKFLOW: ${{ github.workflow }}
+        GH_RUN_ID: ${{ github.run_id }}
+        IDENTITY: ${{ inputs.identity }}
+      run: |
+        set -euo pipefail
+        if [[ "$IDENTITY" != "default" && "$IDENTITY" != "bootstrap" ]]; then
+          echo "::error::identity must be 'default' or 'bootstrap' (got '$IDENTITY')"
+          exit 1
+        fi
+        mode="${INPUT_MODE:-${ENV_AUTH_MODE:-oidc}}"
+        if [[ "$mode" != "oidc" && "$mode" != "access_key" ]]; then
+          echo "::error::mode must be 'oidc' or 'access_key' (got '$mode')"
+          exit 1
+        fi
+        slug="${GH_WORKFLOW// /-}"
+        session="${INPUT_SESSION:-atmos-${slug}-${GH_RUN_ID}}"
+        echo "mode=$mode" >> "$GITHUB_OUTPUT"
+        echo "session=$session" >> "$GITHUB_OUTPUT"
+
+    - name: Configure AWS credentials (OIDC)
+      if: steps.resolve-mode.outputs.mode == 'oidc'
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.central_role_arn }}
+        role-session-name: ${{ steps.resolve-mode.outputs.session }}
+        aws-region: ${{ inputs.region }}
+
+    - name: Configure AWS credentials (access key)
+      if: steps.resolve-mode.outputs.mode == 'access_key'
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ env.AFT_BOOTSTRAP_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AFT_BOOTSTRAP_SECRET_ACCESS_KEY }}
+        aws-region: ${{ inputs.region }}
+
+    - name: Chain to central role (access key path)
+      if: steps.resolve-mode.outputs.mode == 'access_key'
+      shell: bash
+      env:
+        CENTRAL_ROLE_ARN: ${{ inputs.central_role_arn }}
+        SESSION: ${{ steps.resolve-mode.outputs.session }}
+      run: |
+        set -euo pipefail
+        creds="$(aws sts assume-role \
+          --role-arn "$CENTRAL_ROLE_ARN" \
+          --role-session-name "$SESSION" \
+          --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+          --output text)"
+        ak="$(echo "$creds" | awk '{print $1}')"
+        sk="$(echo "$creds" | awk '{print $2}')"
+        st="$(echo "$creds" | awk '{print $3}')"
+        echo "::add-mask::$ak"
+        echo "::add-mask::$sk"
+        echo "::add-mask::$st"
+        {
+          echo "AWS_ACCESS_KEY_ID=$ak"
+          echo "AWS_SECRET_ACCESS_KEY=$sk"
+          echo "AWS_SESSION_TOKEN=$st"
+        } >> "$GITHUB_ENV"
+
+    - name: Export ATMOS_AUTH_IDENTITY
+      shell: bash
+      env:
+        IDENTITY: ${{ inputs.identity }}
+      run: echo "ATMOS_AUTH_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
+    - name: Export TF_VAR_target_role_arn (central → target hop)
+      if: inputs.target_role_arn != ''
+      shell: bash
+      env:
+        TARGET_ROLE_ARN: ${{ inputs.target_role_arn }}
+      run: echo "TF_VAR_target_role_arn=$TARGET_ROLE_ARN" >> "$GITHUB_ENV"
+
+    - name: Resolve caller identity
+      id: whoami
+      shell: bash
+      run: |
+        set -euo pipefail
+        acct="$(aws sts get-caller-identity --query Account --output text)"
+        echo "account_id=$acct" >> "$GITHUB_OUTPUT"

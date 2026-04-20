@@ -1,0 +1,10 @@
+# Audit account class. CT-provisioned. Holds delegated admins for GuardDuty,
+# Security Hub, Inspector; cloudtrail-lake; centralized logging aggregator.
+vars:
+  account_class: audit
+  bootstrap_role: OrganizationAccountAccessRole
+components:
+  terraform:
+    iam-deployment-roles/target:
+      vars:
+        account_class: audit

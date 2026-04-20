@@ -1,0 +1,67 @@
+name: _feature-options
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  flags:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      delete_default_vpcs: ${{ steps.read.outputs.delete_default_vpcs }}
+      enroll_support: ${{ steps.read.outputs.enroll_support }}
+      enable_cloudtrail: ${{ steps.read.outputs.enable_cloudtrail }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: read
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+        run: |
+          set -euo pipefail
+          json="$(atmos describe stacks -s "$STACK" --format json)"
+          q() { echo "$json" | jq -r --arg s "$STACK" ".[\$s].vars.feature_options.$1 // false"; }
+          echo "delete_default_vpcs=$(q delete_default_vpcs)" >> "$GITHUB_OUTPUT"
+          echo "enroll_support=$(q enroll_support)" >> "$GITHUB_OUTPUT"
+          echo "enable_cloudtrail=$(q enable_cloudtrail)" >> "$GITHUB_OUTPUT"
+
+  delete-default-vpcs:
+    needs: flags
+    if: needs.flags.outputs.delete_default_vpcs == 'true'
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: feature-options/delete-default-vpcs
+    secrets: inherit
+
+  enroll-enterprise-support:
+    needs: [flags, delete-default-vpcs]
+    if: always() && needs.flags.outputs.enroll_support == 'true' && !cancelled() && (needs.delete-default-vpcs.result == 'success' || needs.delete-default-vpcs.result == 'skipped')
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: feature-options/enterprise-support
+    secrets: inherit
+
+  enable-cloudtrail-org-logging:
+    needs: [flags, enroll-enterprise-support]
+    if: always() && needs.flags.outputs.enable_cloudtrail == 'true' && !cancelled() && (needs.enroll-enterprise-support.result == 'success' || needs.enroll-enterprise-support.result == 'skipped')
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: feature-options/cloudtrail-org-logging
+    secrets: inherit

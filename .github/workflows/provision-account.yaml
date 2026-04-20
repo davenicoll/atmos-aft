@@ -1,0 +1,281 @@
+name: provision-account
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: "Stack name (e.g., plat-ue1-prod)"
+        required: true
+        type: string
+      skip_customizations:
+        description: "Skip global and account customisations"
+        required: false
+        type: boolean
+        default: false
+      skip_feature_options:
+        description: "Skip feature-options (delete-default-vpc, support, trail)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+
+concurrency:
+  group: provision-${{ inputs.stack }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-env:
+    name: resolve environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      environment: ${{ steps.e.outputs.environment }}
+      ct_mgmt_stack: ${{ steps.ct.outputs.ct_mgmt_stack }}
+      audit_stack: ${{ steps.ct.outputs.audit_stack }}
+    steps:
+      - id: e
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+        run: |
+          case "$STACK" in
+            aft-mgmt-*) echo "environment=aft-mgmt" >> "$GITHUB_OUTPUT" ;;
+            *-prod*)    echo "environment=prod" >> "$GITHUB_OUTPUT" ;;
+            *)          echo "environment=non-prod" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: ct
+        shell: bash
+        run: |
+          set -euo pipefail
+          stacks_json="$(atmos describe stacks --format json)"
+          ct_mgmt_stack=$(echo "$stacks_json" | jq -r \
+            'to_entries[] | select(.value.vars.account_class == "ct-mgmt") | .key' | head -1)
+          audit_stack=$(echo "$stacks_json" | jq -r \
+            'to_entries[] | select(.value.vars.account_class == "audit") | .key' | head -1)
+          if [[ -z "$ct_mgmt_stack" || -z "$audit_stack" ]]; then
+            echo "::error::could not resolve ct-mgmt / audit stacks via vars.account_class"
+            exit 1
+          fi
+          {
+            echo "ct_mgmt_stack=$ct_mgmt_stack"
+            echo "audit_stack=$audit_stack"
+          } >> "$GITHUB_OUTPUT"
+
+  # 1. account-provisioning — Service Catalog provisioned product
+  account-provisioning:
+    name: 1. account-provisioning
+    needs: resolve-env
+    concurrency:
+      group: ct-provisioning
+      cancel-in-progress: false
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: account-provisioning
+      environment: aft-mgmt
+      retry_attempts: 1
+    secrets: inherit
+
+  # 2. publish-account-id — store-outputs hook writes SSM
+  publish-account-id:
+    name: 2. publish-account-id
+    needs: account-provisioning
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 10
+    outputs:
+      account_id: ${{ steps.pub.outputs.account_id }}
+      account_name: ${{ steps.ctx.outputs.account_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: ctx
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ inputs.stack }}
+          component: account-provisioning
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-provision-${{ inputs.stack }}-publish-id
+      - id: pub
+        shell: bash
+        run: |
+          set -euo pipefail
+          account_id=$(atmos terraform output account-provisioning -s '${{ inputs.stack }}' --json | jq -r '.account_id.value')
+          echo "account_id=$account_id" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/publish-status
+        with:
+          account_name: ${{ steps.ctx.outputs.account_name }}
+          stack: ${{ inputs.stack }}
+          status: provisioning
+
+  # 3. tfstate-backend-target — bootstrap identity
+  tfstate-backend-target:
+    name: 3. tfstate-backend-target
+    needs: publish-account-id
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: tfstate-backend
+    secrets: inherit
+
+  # 4. iam-deployment-roles — bootstrap identity
+  iam-deployment-roles:
+    name: 4. iam-deployment-roles/target
+    needs: tfstate-backend-target
+    uses: ./.github/workflows/_bootstrap-target.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: iam-deployment-roles/target
+    secrets: inherit
+
+  # 5. account-baseline — default identity (AtmosDeploymentRole now exists)
+  account-baseline:
+    name: 5. account-baseline
+    needs: [resolve-env, iam-deployment-roles]
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - account-baseline
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: ${{ matrix.component }}
+      environment: ${{ needs.resolve-env.outputs.environment }}
+    secrets: inherit
+
+  # 6. feature-options
+  feature-options:
+    name: 6. feature-options
+    needs: [resolve-env, account-baseline]
+    if: inputs.skip_feature_options != true
+    uses: ./.github/workflows/_feature-options.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      environment: ${{ needs.resolve-env.outputs.environment }}
+    secrets: inherit
+
+  # 7a. config-rules
+  baseline-config-rules:
+    name: 7a. baseline-security/config-rules
+    needs: [resolve-env, account-baseline]
+    if: always() && (needs.feature-options.result == 'success' || needs.feature-options.result == 'skipped')
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      component: baseline-security/config-rules
+      environment: ${{ needs.resolve-env.outputs.environment }}
+    secrets: inherit
+
+  # 7b. guardduty — phase 3 fan-out only (skip_if_already_applied=true)
+  baseline-guardduty:
+    name: 7b. baseline-security/guardduty
+    needs: [resolve-env, baseline-config-rules]
+    uses: ./.github/workflows/_apply-security-service.yaml
+    with:
+      service: guardduty
+      mgmt_stack: ${{ needs.resolve-env.outputs.ct_mgmt_stack }}
+      audit_stack: ${{ needs.resolve-env.outputs.audit_stack }}
+      target_stacks: '["${{ inputs.stack }}"]'
+      skip_if_already_applied: true
+    secrets: inherit
+
+  # 7c. security-hub
+  baseline-security-hub:
+    name: 7c. baseline-security/security-hub
+    needs: [resolve-env, baseline-guardduty]
+    uses: ./.github/workflows/_apply-security-service.yaml
+    with:
+      service: security-hub
+      mgmt_stack: ${{ needs.resolve-env.outputs.ct_mgmt_stack }}
+      audit_stack: ${{ needs.resolve-env.outputs.audit_stack }}
+      target_stacks: '["${{ inputs.stack }}"]'
+      skip_if_already_applied: true
+    secrets: inherit
+
+  # 7d. inspector2
+  baseline-inspector2:
+    name: 7d. baseline-security/inspector2
+    needs: [resolve-env, baseline-security-hub]
+    uses: ./.github/workflows/_apply-security-service.yaml
+    with:
+      service: inspector2
+      mgmt_stack: ${{ needs.resolve-env.outputs.ct_mgmt_stack }}
+      audit_stack: ${{ needs.resolve-env.outputs.audit_stack }}
+      target_stacks: '["${{ inputs.stack }}"]'
+      skip_if_already_applied: true
+    secrets: inherit
+
+  # 8. custom-provisioning
+  custom-provisioning:
+    name: 8. custom-provisioning-hook
+    needs: [publish-account-id, baseline-inspector2]
+    uses: ./.github/workflows/_post-provision-hook.yaml
+    with:
+      stack: ${{ inputs.stack }}
+      account_id: ${{ needs.publish-account-id.outputs.account_id }}
+    secrets: inherit
+
+  # 9. customize-global
+  customize-global:
+    name: 9. customize-global
+    needs: [resolve-env, custom-provisioning]
+    if: inputs.skip_customizations != true
+    uses: ./.github/workflows/_customize-global.yaml
+    with:
+      target_stacks: '["${{ inputs.stack }}"]'
+      environment: ${{ needs.resolve-env.outputs.environment }}
+    secrets: inherit
+
+  # 10. customize-account
+  customize-account:
+    name: 10. customize-account
+    needs: [resolve-env, customize-global]
+    if: always() && inputs.skip_customizations != true && (needs.customize-global.result == 'success' || needs.customize-global.result == 'skipped')
+    uses: ./.github/workflows/_customize-account.yaml
+    with:
+      target_stacks: '["${{ inputs.stack }}"]'
+      environment: ${{ needs.resolve-env.outputs.environment }}
+    secrets: inherit
+
+  # 11. publish-status = customized
+  publish-status:
+    name: 11. publish-status
+    needs: [publish-account-id, customize-account]
+    if: always() && needs.publish-account-id.result == 'success'
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-provision-${{ inputs.stack }}-publish-status
+      - name: status
+        id: st
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ needs.customize-account.result }}" == "success" || "${{ needs.customize-account.result }}" == "skipped" ]]; then
+            echo "status=customized" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: ./.github/actions/publish-status
+        with:
+          account_name: ${{ needs.publish-account-id.outputs.account_name }}
+          stack: ${{ inputs.stack }}
+          status: ${{ steps.st.outputs.status }}

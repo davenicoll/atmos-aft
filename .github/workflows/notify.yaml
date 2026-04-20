@@ -1,0 +1,84 @@
+name: notify
+
+on:
+  workflow_run:
+    workflows:
+      - provision-account
+      - destroy-account
+      - customize-fleet
+      - drift-detection
+    types: [completed]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: notify-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: publish notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: resolve status
+        id: status
+        shell: bash
+        env:
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          {
+            echo "conclusion=$CONCLUSION"
+            echo "workflow=$WORKFLOW"
+            echo "run_url=$RUN_URL"
+            echo "head_sha=$HEAD_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: publish to SNS
+        if: vars.SNS_NOTIFICATIONS_TOPIC_ARN != ''
+        uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-notify-${{ github.run_id }}
+
+      - name: sns publish
+        if: vars.SNS_NOTIFICATIONS_TOPIC_ARN != ''
+        shell: bash
+        env:
+          TOPIC_ARN: ${{ vars.SNS_NOTIFICATIONS_TOPIC_ARN }}
+          WORKFLOW: ${{ steps.status.outputs.workflow }}
+          CONCLUSION: ${{ steps.status.outputs.conclusion }}
+          RUN_URL: ${{ steps.status.outputs.run_url }}
+        run: |
+          set -euo pipefail
+          aws sns publish \
+            --topic-arn "$TOPIC_ARN" \
+            --subject "atmos-aft: $WORKFLOW $CONCLUSION" \
+            --message "Workflow: $WORKFLOW
+          Conclusion: $CONCLUSION
+          Run: $RUN_URL"
+
+      - name: slack webhook
+        if: env.SLACK_WEBHOOK_URL != ''
+        shell: bash
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          WORKFLOW: ${{ steps.status.outputs.workflow }}
+          CONCLUSION: ${{ steps.status.outputs.conclusion }}
+          RUN_URL: ${{ steps.status.outputs.run_url }}
+        run: |
+          set -euo pipefail
+          payload=$(jq -n \
+            --arg text "atmos-aft: *$WORKFLOW* — \`$CONCLUSION\` — <$RUN_URL|run>" \
+            '{text: $text}')
+          curl -sS -X POST -H 'Content-Type: application/json' \
+            --data "$payload" \
+            "$SLACK_WEBHOOK_URL"

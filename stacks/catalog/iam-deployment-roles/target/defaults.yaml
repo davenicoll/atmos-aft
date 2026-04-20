@@ -1,0 +1,13 @@
+# Creates AtmosDeploymentRole + AtmosDeploymentRole-ReadOnly in the target
+# account. `vars.account_class` is stamped by the account-class mixin and
+# drives the trust-policy branch (ExternalId required for CT-core, omitted
+# for vended) inside the component. See gha-design.md §4.6.
+components:
+  terraform:
+    iam-deployment-roles/target:
+      metadata:
+        component: iam-deployment-roles/target
+      vars:
+        aft_mgmt_account_id: !template "{{ .settings.aft_mgmt_account_id }}"
+        atmos_external_id: !env ATMOS_EXTERNAL_ID
+        max_session_duration: 3600

@@ -1,0 +1,14 @@
+# Wraps cloudposse/terraform-aws-config's `conformance-pack` submodule only.
+# create_recorder / create_iam_role are defence-in-depth defaults — CT owns
+# the recorder and its IAM role. required_ct_flags.rego blocks overrides.
+components:
+  terraform:
+    aws-config-conformance-pack:
+      metadata:
+        component: aws-config-conformance-pack
+      vars:
+        create_recorder: false
+        create_iam_role: false
+        conformance_pack:
+          name: operational-best-practices
+          template_body_path: ""

@@ -1,0 +1,13 @@
+{
+  "inputs": {
+    "aft_mgmt_account_id": "222222222222",
+    "aft_mgmt_region": "us-east-1",
+    "separate_aft_mgmt_account": "true",
+    "terraform_distribution": "oss"
+  },
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "davenicoll/atmos-aft",
+    "default_branch": "main"
+  }
+}

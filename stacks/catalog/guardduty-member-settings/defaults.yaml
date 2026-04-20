@@ -1,0 +1,17 @@
+# Phase 3 — runs per-member. Member-side detector settings.
+components:
+  terraform:
+    guardduty-member-settings:
+      metadata:
+        component: guardduty-member-settings
+        phase: 3
+        depends_on:
+          - phase: 2
+            component: guardduty-delegated-admin
+      vars:
+        finding_publishing_frequency: FIFTEEN_MINUTES
+        s3_protection_enabled: true
+        eks_protection_enabled: true
+        malware_protection_enabled: true
+        runtime_monitoring_enabled: true
+        lambda_network_logs_enabled: true

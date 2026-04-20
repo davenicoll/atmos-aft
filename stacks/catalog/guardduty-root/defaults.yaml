@@ -1,0 +1,10 @@
+# Phase 1 — runs in CT-mgmt. Enables the org detector and delegates admin to
+# the audit account.
+components:
+  terraform:
+    guardduty-root:
+      metadata:
+        component: guardduty-root
+        phase: 1
+      vars:
+        delegated_admin_account_id: !template "{{ .settings.audit_account_id }}"

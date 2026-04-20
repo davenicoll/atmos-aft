@@ -1,0 +1,11 @@
+components:
+  terraform:
+    aws-account-settings:
+      metadata:
+        component: aws-account-settings
+      vars:
+        manage_password_policy: true
+        password_minimum_length: 14
+        password_max_age: 90
+        password_reuse_prevention: 24
+        manage_ebs_encryption: true

@@ -1,0 +1,12 @@
+{
+  "inputs": {
+    "stack": "plat-ue1-non-prod",
+    "skip_customizations": "false",
+    "skip_feature_options": "false"
+  },
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "davenicoll/atmos-aft",
+    "default_branch": "main"
+  }
+}

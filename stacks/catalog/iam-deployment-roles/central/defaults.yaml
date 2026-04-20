@@ -1,0 +1,12 @@
+# Creates AtmosCentralDeploymentRole + AtmosPlanOnlyRole + AtmosReadAllStateRole
+# in AFT-mgmt. Trust target is the GitHub OIDC provider provisioned by the
+# sibling github-oidc-provider component.
+components:
+  terraform:
+    iam-deployment-roles/central:
+      metadata:
+        component: iam-deployment-roles/central
+      vars:
+        github_org: !template "{{ .settings.github_org }}"
+        github_repo: !template "{{ .settings.github_repo }}"
+        max_session_duration: 3600

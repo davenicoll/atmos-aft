@@ -1,0 +1,102 @@
+name: _customize-account
+
+on:
+  workflow_call:
+    inputs:
+      target_stacks:
+        required: true
+        type: string
+      customization_name:
+        required: false
+        type: string
+        default: ""
+      customizations_source_ref:
+        required: false
+        type: string
+        default: HEAD
+      max_parallel:
+        required: false
+        type: number
+        default: 20
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  customize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        stack: ${{ fromJson(inputs.target_stacks) }}
+    env:
+      AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.customizations_source_ref }}
+      - uses: ./.github/actions/setup-atmos
+      - id: resolve-name
+        shell: bash
+        env:
+          STACK: ${{ matrix.stack }}
+          CNAME: ${{ inputs.customization_name }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$CNAME" ]]; then
+            echo "name=$CNAME" >> "$GITHUB_OUTPUT"
+          else
+            region="$(aws configure get region || echo us-east-1)"
+            name="$(aws ssm get-parameter --region "$region" --name "/aft/account/${STACK}/customization-name" --query 'Parameter.Value' --output text 2>/dev/null || echo default)"
+            echo "name=$name" >> "$GITHUB_OUTPUT"
+          fi
+      - id: ctx
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ matrix.stack }}
+          component: customizations/${{ steps.resolve-name.outputs.name }}
+      - uses: ./.github/actions/configure-aws
+        with:
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          target_role_arn: ${{ steps.ctx.outputs.target_role_arn }}
+          region: ${{ steps.ctx.outputs.region }}
+      - name: Pre-hook
+        shell: bash
+        env:
+          STACK: ${{ matrix.stack }}
+          CNAME: ${{ steps.resolve-name.outputs.name }}
+        run: |
+          if [[ -x scripts/customize/pre-api-helpers.sh ]]; then
+            scripts/customize/pre-api-helpers.sh "$STACK" "$CNAME"
+          fi
+      - name: Apply account customizations
+        shell: bash
+        env:
+          STACK: ${{ matrix.stack }}
+          CNAME: ${{ steps.resolve-name.outputs.name }}
+        run: atmos terraform deploy "customizations/${CNAME}" -s "$STACK" --ci
+      - name: Post-hook
+        shell: bash
+        env:
+          STACK: ${{ matrix.stack }}
+          CNAME: ${{ steps.resolve-name.outputs.name }}
+        run: |
+          if [[ -x scripts/customize/post-api-helpers.sh ]]; then
+            scripts/customize/post-api-helpers.sh "$STACK" "$CNAME"
+          fi
+      - name: Publish status
+        uses: ./.github/actions/publish-status
+        with:
+          account_name: ${{ steps.ctx.outputs.account_name }}
+          status: customized
+          stack: ${{ matrix.stack }}
+          region: ${{ steps.ctx.outputs.region }}

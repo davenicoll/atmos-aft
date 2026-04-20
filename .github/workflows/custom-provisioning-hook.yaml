@@ -1,0 +1,32 @@
+name: custom-provisioning-hook
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        required: true
+        type: string
+      account_id:
+        required: true
+        type: string
+    secrets:
+      SERVICENOW_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  hook:
+    name: custom provisioning hook
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: no-op placeholder
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+          ACCOUNT_ID: ${{ inputs.account_id }}
+        run: |
+          echo "::notice::custom-provisioning-hook invoked for stack=$STACK account_id=$ACCOUNT_ID"
+          echo "Default no-op. Replace this file with customer-owned hook logic."

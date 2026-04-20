@@ -1,0 +1,194 @@
+apiVersion: atmos/v1
+kind: AtmosVendorConfig
+metadata:
+  name: atmos-aft-vendor
+  description: |
+    Vendored Cloudposse modules backing the atmos-aft components. Each source is
+    pinned to a release tag. Rows below map 1:1 to docs/architecture/module-inventory.md
+    §2 + §2.5. Run `atmos vendor pull` after edits; do NOT edit vendored files in place.
+
+    Custom components (no Cloudposse backing) are NOT listed here — they live in
+    components/terraform/<name>/ directly. See module-inventory.md §0.1 + §2.5 notes.
+spec:
+  sources:
+    # ---- Row 1 + Row 48: state backends (primary + bootstrap) ----
+    - component: "tfstate-backend"
+      source: "github.com/cloudposse/terraform-aws-tfstate-backend.git//?ref=1.9.0"
+      targets:
+        - "vendor/cloudposse/tfstate-backend/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["state"]
+
+    # ---- Row 2 / Row 16: access logs bucket ----
+    - component: "s3-log-storage"
+      source: "github.com/cloudposse/terraform-aws-s3-log-storage.git//?ref=2.0.0"
+      targets:
+        - "vendor/cloudposse/s3-log-storage/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["storage"]
+
+    # ---- Row 3: KMS key ----
+    - component: "kms-key"
+      source: "github.com/cloudposse/terraform-aws-kms-key.git//?ref=0.12.2"
+      targets:
+        - "vendor/cloudposse/kms-key/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["security"]
+
+    # ---- Row 6: SNS topic ----
+    - component: "sns-topic"
+      source: "github.com/cloudposse/terraform-aws-sns-topic.git//?ref=1.2.0"
+      targets:
+        - "vendor/cloudposse/sns-topic/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["messaging"]
+
+    # ---- Row 8: CloudWatch events ----
+    - component: "cloudwatch-events"
+      source: "github.com/cloudposse/terraform-aws-cloudwatch-events.git//?ref=0.10.0"
+      targets:
+        - "vendor/cloudposse/cloudwatch-events/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["events"]
+
+    # ---- Row 9: CloudWatch logs ----
+    - component: "cloudwatch-logs"
+      source: "github.com/cloudposse/terraform-aws-cloudwatch-logs.git//?ref=0.6.9"
+      targets:
+        - "vendor/cloudposse/cloudwatch-logs/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["observability"]
+
+    # ---- Row 10: bulk SSM parameters ----
+    - component: "ssm-parameter-store"
+      source: "github.com/cloudposse/terraform-aws-ssm-parameter-store.git//?ref=0.13.0"
+      targets:
+        - "vendor/cloudposse/ssm-parameter-store/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["config"]
+
+    # ---- Row 11 / Row 25: IAM role ----
+    - component: "iam-role"
+      source: "github.com/cloudposse/terraform-aws-iam-role.git//?ref=0.23.0"
+      targets:
+        - "vendor/cloudposse/iam-role/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["iam"]
+
+    # ---- Row 12: IAM policy ----
+    - component: "iam-policy"
+      source: "github.com/cloudposse/terraform-aws-iam-policy.git//?ref=2.0.2"
+      targets:
+        - "vendor/cloudposse/iam-policy/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["iam"]
+
+    # ---- Row 13: Lambda function ----
+    - component: "lambda-function"
+      source: "github.com/cloudposse/terraform-aws-lambda-function.git//?ref=0.6.1"
+      targets:
+        - "vendor/cloudposse/lambda-function/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["compute"]
+
+    # ---- Row 17 / Row 46: S3 bucket ----
+    - component: "s3-bucket"
+      source: "github.com/cloudposse/terraform-aws-s3-bucket.git//?ref=4.12.0"
+      targets:
+        - "vendor/cloudposse/s3-bucket/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["storage"]
+
+    # ---- Row 18 / Row 47: CloudTrail + CloudTrail S3 bucket ----
+    - component: "cloudtrail"
+      source: "github.com/cloudposse/terraform-aws-cloudtrail.git//?ref=0.24.0"
+      targets:
+        - "vendor/cloudposse/cloudtrail/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["audit"]
+
+    - component: "cloudtrail-s3-bucket"
+      source: "github.com/cloudposse/terraform-aws-cloudtrail-s3-bucket.git//?ref=1.2.0"
+      targets:
+        - "vendor/cloudposse/cloudtrail-s3-bucket/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["audit"]
+
+    # ---- Row 31: SCPs ----
+    - component: "service-control-policies"
+      source: "github.com/cloudposse/terraform-aws-service-control-policies.git//?ref=0.15.2"
+      targets:
+        - "vendor/cloudposse/service-control-policies/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["security"]
+
+    # ---- Row 33: budgets ----
+    - component: "budgets"
+      source: "github.com/cloudposse/terraform-aws-budgets.git//?ref=0.8.0"
+      targets:
+        - "vendor/cloudposse/budgets/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["cost"]
+
+    # ---- Rows 34-36: GuardDuty (3-phase) ----
+    - component: "guardduty"
+      source: "github.com/cloudposse/terraform-aws-guardduty.git//?ref=1.0.0"
+      targets:
+        - "vendor/cloudposse/guardduty/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["security"]
+
+    # ---- Row 37: Security Hub ----
+    - component: "security-hub"
+      source: "github.com/cloudposse/terraform-aws-security-hub.git//?ref=0.12.2"
+      targets:
+        - "vendor/cloudposse/security-hub/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["security"]
+
+    # ---- Rows 38-39: Config submodules (CIS rules + conformance pack) ----
+    # NEVER use the top-level terraform-aws-config module — it always creates a recorder
+    # which collides with CT-provisioned recorder. Pull only the submodules.
+    - component: "config"
+      source: "github.com/cloudposse/terraform-aws-config.git//?ref=1.6.1"
+      targets:
+        - "vendor/cloudposse/config/"
+      included_paths:
+        - "modules/cis-1-2-rules/**/*.tf"
+        - "modules/conformance-pack/**/*.tf"
+      tags: ["security"]
+
+    # ---- Rows 41-42: Identity Center / SSO ----
+    - component: "sso"
+      source: "github.com/cloudposse/terraform-aws-sso.git//?ref=1.2.0"
+      targets:
+        - "vendor/cloudposse/sso/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["identity"]
+
+    # ---- Row 45: VPC Flow Logs S3 bucket ----
+    - component: "vpc-flow-logs-s3-bucket"
+      source: "github.com/cloudposse/terraform-aws-vpc-flow-logs-s3-bucket.git//?ref=1.3.1"
+      targets:
+        - "vendor/cloudposse/vpc-flow-logs-s3-bucket/"
+      included_paths:
+        - "**/*.tf"
+      tags: ["observability"]

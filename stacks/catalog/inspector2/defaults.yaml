@@ -1,0 +1,13 @@
+# Role branches on per-account class (root|administrator|member). Leaf stacks
+# or the account-class mixin override `vars.role`.
+components:
+  terraform:
+    inspector2:
+      metadata:
+        component: inspector2
+      vars:
+        auto_enable_ec2: true
+        auto_enable_ecr: true
+        auto_enable_lambda: true
+        auto_enable_lambda_code: false
+        enabler_resource_types: [EC2, ECR, LAMBDA]

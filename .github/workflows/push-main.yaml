@@ -1,0 +1,130 @@
+name: push-main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'stacks/**'
+      - 'components/**'
+      - 'vendor.yaml'
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+
+concurrency:
+  group: push-main
+  cancel-in-progress: false
+
+jobs:
+  affected:
+    name: describe affected
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 15
+    outputs:
+      affected_json: ${{ steps.a.outputs.affected_json }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-push-main-affected
+      - id: a
+        shell: bash
+        run: |
+          set -euo pipefail
+          atmos describe affected \
+            --ref "${{ github.event.before }}" \
+            --format json \
+            > "$RUNNER_TEMP/affected.json"
+          echo "affected_json=$(jq -c . "$RUNNER_TEMP/affected.json")" >> "$GITHUB_OUTPUT"
+
+  route:
+    name: classify affected
+    needs: affected
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 5
+    outputs:
+      new_stacks: ${{ steps.r.outputs.new_stacks }}
+      destroyed_stacks: ${{ steps.r.outputs.destroyed_stacks }}
+      has_customizations: ${{ steps.r.outputs.has_customizations }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: r
+        shell: bash
+        env:
+          AFFECTED: ${{ needs.affected.outputs.affected_json }}
+        run: |
+          set -euo pipefail
+          bash scripts/classify-affected.sh <<<"$AFFECTED" \
+            | tee "$GITHUB_OUTPUT"
+
+  dispatch-provision:
+    name: dispatch provision-account
+    needs: route
+    if: needs.route.outputs.new_stacks != '[]' && needs.route.outputs.new_stacks != ''
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.route.outputs.new_stacks) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: gh workflow run provision-account
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_DISPATCH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run provision-account.yaml \
+            --ref main \
+            -f stack='${{ matrix.stack }}' \
+            || true
+
+  dispatch-customize:
+    name: dispatch customize-fleet
+    needs: route
+    if: needs.route.outputs.has_customizations == 'true'
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_DISPATCH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run customize-fleet.yaml \
+            --ref main \
+            -f scope=changed
+
+  dispatch-destroy:
+    name: dispatch destroy-account
+    needs: route
+    if: needs.route.outputs.destroyed_stacks != '[]' && needs.route.outputs.destroyed_stacks != ''
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: ${{ fromJSON(needs.route.outputs.destroyed_stacks) }}
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOW_DISPATCH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run destroy-account.yaml \
+            --ref main \
+            -f stack='${{ matrix.stack }}' \
+            || true

@@ -1,0 +1,34 @@
+# CODEOWNERS — routes PR review to the right people by path.
+# Lines are matched in order; the LAST matching line wins. See review.md §5.
+
+# Default: platform team reviews everything.
+*                                       @davenicoll
+
+# Architecture / design docs — require platform + security review.
+/docs/architecture/                     @davenicoll
+
+# Atmos stacks — core logic; strict review.
+/stacks/                                @davenicoll
+/stacks/orgs/**/_defaults.yaml          @davenicoll
+/stacks/catalog/                        @davenicoll
+/stacks/schemas/                        @davenicoll
+
+# Custom components (non-vended) — blast radius is high.
+/components/terraform/account-provisioning/     @davenicoll
+/components/terraform/iam-deployment-roles/     @davenicoll
+/components/terraform/tfstate-backend/          @davenicoll
+/components/terraform/ct-event-bridge/          @davenicoll
+/components/terraform/cloudtrail-lake/          @davenicoll
+
+# Reusable workflows — invoked by every entry-point; breakage is systemic.
+/.github/workflows/reusable/            @davenicoll
+/.github/actions/                       @davenicoll
+
+# OPA policies — guardrails for plan/apply; must not be weakened silently.
+/.github/policies/                      @davenicoll
+/tests/opa/                             @davenicoll
+
+# Top-level configuration.
+/atmos.yaml                             @davenicoll
+/vendor.yaml                            @davenicoll
+/Makefile                               @davenicoll

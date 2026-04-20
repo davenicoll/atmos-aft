@@ -1,0 +1,20 @@
+# Phase 2 — runs in audit. Configures org-wide detector settings now that
+# audit is the delegated admin. Must apply after guardduty-root (phase 1);
+# metadata.depends_on satisfies guardduty_phase_ordering.rego.
+components:
+  terraform:
+    guardduty-delegated-admin:
+      metadata:
+        component: guardduty-delegated-admin
+        phase: 2
+        depends_on:
+          - phase: 1
+            component: guardduty-root
+      vars:
+        finding_publishing_frequency: FIFTEEN_MINUTES
+        auto_enable_organization_members: NEW
+        s3_protection_enabled: true
+        eks_protection_enabled: true
+        malware_protection_enabled: true
+        runtime_monitoring_enabled: true
+        lambda_network_logs_enabled: true

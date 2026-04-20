@@ -1,0 +1,90 @@
+name: _post-provision-hook
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        required: true
+        type: string
+      account_id:
+        required: true
+        type: string
+      customization_name:
+        required: false
+        type: string
+        default: ""
+      hook_workflow:
+        required: false
+        type: string
+        default: .github/workflows/custom-provisioning-hook.yaml
+      timeout_minutes:
+        required: false
+        type: number
+        default: 15
+    outputs:
+      hook_status:
+        description: "succeeded | skipped | failed"
+        value: ${{ jobs.hook.outputs.hook_status }}
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      present: ${{ steps.detect.outputs.present }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        shell: bash
+        env:
+          HOOK: ${{ inputs.hook_workflow }}
+        run: |
+          if [[ -f "$HOOK" ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No custom provisioning hook at $HOOK; skipping"
+          fi
+
+  hook:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    if: needs.check.outputs.present == 'true'
+    outputs:
+      hook_status: ${{ steps.run.outcome == 'success' && 'succeeded' || 'failed' }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: run
+        uses: actions/github-script@v7
+        env:
+          HOOK_FILE: ${{ inputs.hook_workflow }}
+          STACK: ${{ inputs.stack }}
+          ACCOUNT_ID: ${{ inputs.account_id }}
+          CNAME: ${{ inputs.customization_name }}
+        with:
+          script: |
+            const path = require('path');
+            const workflow_id = path.basename(process.env.HOOK_FILE);
+            const { data: run } = await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id,
+              ref: context.sha,
+              inputs: {
+                stack: process.env.STACK,
+                account_id: process.env.ACCOUNT_ID,
+                customization_name: process.env.CNAME,
+              },
+            });
+            core.info(`Dispatched ${workflow_id} at ref ${context.sha}`);

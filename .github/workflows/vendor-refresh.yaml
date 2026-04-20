@@ -1,0 +1,51 @@
+name: vendor-refresh
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: vendor-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    name: atmos vendor pull
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - name: atmos vendor pull
+        shell: bash
+        run: atmos vendor pull
+      - name: detect changes
+        id: diff
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: open PR
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.WORKFLOW_DISPATCH_PAT || secrets.GITHUB_TOKEN }}
+          commit-message: "chore(vendor): refresh vendored components"
+          title: "chore(vendor): weekly vendor refresh"
+          body: |
+            Automated refresh of vendored components via `atmos vendor pull`.
+
+            - Triggered by: ${{ github.event_name }}
+            - Run: ${{ github.run_id }}
+          branch: vendor-refresh/${{ github.run_id }}
+          labels: |
+            vendor-refresh
+            automated

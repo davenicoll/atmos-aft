@@ -1,0 +1,127 @@
+name: _atmos-apply
+run-name: "apply: ${{ inputs.component }} @ ${{ inputs.stack }}"
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        required: true
+        type: string
+      component:
+        required: true
+        type: string
+      require_stored_plan:
+        required: false
+        type: boolean
+        default: false
+      planfile_key:
+        required: false
+        type: string
+        default: ""
+      retry_attempts:
+        required: false
+        type: number
+        default: 1
+      retry_delay_seconds:
+        required: false
+        type: number
+        default: 60
+      identity:
+        required: false
+        type: string
+        default: default
+      region:
+        required: false
+        type: string
+        default: ""
+    outputs:
+      apply_status:
+        description: "succeeded | failed"
+        value: ${{ jobs.apply.outputs.apply_status }}
+      resource_changes:
+        description: "JSON summary of applied changes"
+        value: ${{ jobs.apply.outputs.resource_changes }}
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      PLAN_STORAGE_BUCKET:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      apply_status: ${{ steps.apply.outcome == 'success' && 'succeeded' || 'failed' }}
+      resource_changes: ${{ steps.apply.outputs.resource_changes }}
+    env:
+      AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: ctx
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ inputs.stack }}
+          component: ${{ inputs.component }}
+      - uses: ./.github/actions/configure-aws
+        with:
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          target_role_arn: ${{ steps.ctx.outputs.target_role_arn }}
+          region: ${{ inputs.region != '' && inputs.region || steps.ctx.outputs.region }}
+          identity: ${{ inputs.identity }}
+      - name: Download stored planfile
+        if: inputs.require_stored_plan
+        shell: bash
+        env:
+          KEY: ${{ inputs.planfile_key }}
+          BUCKET: ${{ secrets.PLAN_STORAGE_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEY" ]]; then
+            echo "::error::require_stored_plan=true but planfile_key is empty"
+            exit 1
+          fi
+          dest="$RUNNER_TEMP/plan.bin"
+          aws s3 cp "s3://${BUCKET}/${KEY}" "$dest"
+          echo "PLAN_FILE=$dest" >> "$GITHUB_ENV"
+      - id: apply
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+          COMPONENT: ${{ inputs.component }}
+          ATTEMPTS: ${{ inputs.retry_attempts }}
+          DELAY: ${{ inputs.retry_delay_seconds }}
+        run: |
+          set -euo pipefail
+          attempt=1
+          while :; do
+            if atmos terraform deploy "$COMPONENT" -s "$STACK" --ci 2> "$RUNNER_TEMP/err.log"; then
+              break
+            fi
+            if (( attempt >= ATTEMPTS )); then
+              cat "$RUNNER_TEMP/err.log" >&2
+              exit 1
+            fi
+            # AFT create_role retry pattern: eventual-consistency on IAM
+            if grep -qiE 'eventual|throttl|not ?found|invalid.*identity' "$RUNNER_TEMP/err.log"; then
+              echo "::warning::transient error, retry ${attempt}/${ATTEMPTS} in ${DELAY}s"
+              sleep "$DELAY"
+              attempt=$((attempt + 1))
+              DELAY=$((DELAY * 3 / 2))
+              continue
+            fi
+            cat "$RUNNER_TEMP/err.log" >&2
+            exit 1
+          done
+          summary="$(atmos terraform output "$COMPONENT" -s "$STACK" --format json 2>/dev/null || echo '{}')"
+          echo "resource_changes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$summary" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"

@@ -1,0 +1,58 @@
+# Wraps Service Catalog Account Factory product for a single account.
+# Leaf stacks override account_name, account_email, managed_organizational_unit.
+#
+# SSM namespace — publish-status contract.
+# =========================================
+# The publish-status composite action (.github/actions/publish-status/action.yml)
+# owns writes to /aft/account/<account_name>/* in the AFT-mgmt account. Every
+# workflow that mutates an account MUST end with a publish-status call so the
+# status, timestamps, and provenance fields stay consistent across workflows.
+#
+# Canonical keys under /aft/account/<account_name>/:
+#   account-id                     written by the after-apply hook below
+#   status                         provisioning|baseline-deployed|customized|drift|
+#                                  failed|closing|destroyed|destroy-stuck|ct-confirmed
+#   status-updated-at              ISO-8601 (publish-status)
+#   stack                          last stack touched (optional, publish-status)
+#   triggered_by_sha               publish-status
+#   triggered_by_commit_author     publish-status
+#   last-run-id                    publish-status
+#   last-workflow                  publish-status
+#   destroyed_at                   ISO-8601, destroy-account.yaml only
+#   email                          account_email, destroy-account.yaml only
+#
+# Cooldown guard (pr.yaml).
+# -------------------------
+# pr.yaml reads /aft/account/<name>/{status,destroyed_at} via configure-aws
+# (plan-only role chain) and blocks any re-add of an account whose status is
+# `destroyed` AND whose destroyed_at is within the last 7 days. destroy-account.yaml
+# is responsible for writing both fields — its final step invokes publish-status
+# with:
+#   status: destroyed
+#   extra: |
+#     destroyed_at=<iso-ts>
+#     email=<account_email>
+#
+# The Atmos `ssm-account-status` store (atmos.yaml) is pinned to this prefix so
+# any component that needs to introspect status can do so via !store, e.g.:
+#
+#   vars:
+#     previous_status: !store ssm-account-status {{ .vars.account_name }}/status
+#     previously_destroyed_at: !store ssm-account-status {{ .vars.account_name }}/destroyed_at
+#
+# The PR workflow itself does not need !store — it reads the keys directly via
+# `aws ssm get-parameters` inside the cooldown-guard step, using the plan-only
+# role identity provided by configure-aws.
+components:
+  terraform:
+    account-provisioning:
+      metadata:
+        component: account-provisioning
+      vars: {}
+      settings:
+        spacelift:
+          workspace_enabled: false
+      hooks:
+        store-outputs:
+          events: [after-terraform-apply]
+          command: !template 'aws ssm put-parameter --name "/aft/account/{{ .vars.account_name }}/account-id" --value "$(terraform output -raw account_id)" --type String --overwrite'

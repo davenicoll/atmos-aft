@@ -1,0 +1,61 @@
+name: _matrix-chunk
+
+on:
+  workflow_call:
+    inputs:
+      targets:
+        required: true
+        type: string
+      chunk_size:
+        required: false
+        type: number
+        default: 200
+      downstream_workflow:
+        required: true
+        type: string
+    outputs:
+      chunks:
+        description: "JSON array of target chunks, each a JSON array of stacks"
+        value: ${{ jobs.chunk.outputs.chunks }}
+      chunk_count:
+        description: "Number of chunks produced"
+        value: ${{ jobs.chunk.outputs.chunk_count }}
+      chunk_indices:
+        description: "JSON array of integers [0..N-1] for second-level matrix"
+        value: ${{ jobs.chunk.outputs.chunk_indices }}
+
+permissions:
+  contents: read
+
+jobs:
+  chunk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      chunks: ${{ steps.split.outputs.chunks }}
+      chunk_count: ${{ steps.split.outputs.chunk_count }}
+      chunk_indices: ${{ steps.split.outputs.chunk_indices }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: split
+        shell: bash
+        env:
+          TARGETS: ${{ inputs.targets }}
+          CHUNK_SIZE: ${{ inputs.chunk_size }}
+          DOWNSTREAM: ${{ inputs.downstream_workflow }}
+        run: |
+          set -euo pipefail
+          case "$DOWNSTREAM" in
+            customize-global|customize-account|feature-options|atmos-apply) ;;
+            *) echo "::error::unknown downstream_workflow '$DOWNSTREAM'"; exit 1 ;;
+          esac
+          chunks="$(echo "$TARGETS" | jq -c --argjson n "$CHUNK_SIZE" '
+            [range(0; length; $n) as $i | .[$i:$i+$n]]
+          ')"
+          count="$(echo "$chunks" | jq 'length')"
+          indices="$(echo "$chunks" | jq -c '[range(0; length)]')"
+          {
+            echo "chunks=$chunks"
+            echo "chunk_count=$count"
+            echo "chunk_indices=$indices"
+          } >> "$GITHUB_OUTPUT"

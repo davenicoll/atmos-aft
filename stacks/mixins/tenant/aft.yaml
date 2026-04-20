@@ -1,0 +1,3 @@
+vars:
+  tenant: aft
+  namespace: acme

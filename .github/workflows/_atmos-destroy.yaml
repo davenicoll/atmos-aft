@@ -1,0 +1,72 @@
+name: _atmos-destroy
+run-name: "destroy: ${{ inputs.component }} @ ${{ inputs.stack }}"
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        required: true
+        type: string
+      component:
+        required: true
+        type: string
+      confirm:
+        required: true
+        type: boolean
+      identity:
+        required: false
+        type: string
+        default: default
+      region:
+        required: false
+        type: string
+        default: ""
+    outputs:
+      destroy_status:
+        description: "succeeded | failed"
+        value: ${{ jobs.destroy.outputs.destroy_status }}
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      destroy_status: ${{ steps.run.outcome == 'success' && 'succeeded' || 'failed' }}
+    env:
+      AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Guard — confirm must be true
+        if: ${{ !inputs.confirm }}
+        shell: bash
+        run: |
+          echo "::error::_atmos-destroy.yaml requires confirm=true"
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: ctx
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ inputs.stack }}
+          component: ${{ inputs.component }}
+      - uses: ./.github/actions/configure-aws
+        with:
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          target_role_arn: ${{ steps.ctx.outputs.target_role_arn }}
+          region: ${{ inputs.region != '' && inputs.region || steps.ctx.outputs.region }}
+          identity: ${{ inputs.identity }}
+      - id: run
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+          COMPONENT: ${{ inputs.component }}
+        run: atmos terraform destroy "$COMPONENT" -s "$STACK" --ci -auto-approve

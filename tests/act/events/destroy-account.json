@@ -1,0 +1,11 @@
+{
+  "inputs": {
+    "stack": "plat-ue1-non-prod",
+    "confirm_account_id": "111111111111"
+  },
+  "ref": "refs/heads/main",
+  "repository": {
+    "full_name": "davenicoll/atmos-aft",
+    "default_branch": "main"
+  }
+}

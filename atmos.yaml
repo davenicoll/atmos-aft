@@ -1,0 +1,135 @@
+# Atmos configuration for atmos-aft (Cloudposse Atmos + GHA replacement for AWS AFT).
+# See docs/architecture/atmos-model.md for the authoritative model.
+
+base_path: "."
+
+components:
+  terraform:
+    base_path: "components/terraform"
+    apply_auto_approve: false
+    deploy_run_init: true
+    init_run_reconfigure: true
+    auto_generate_backend_file: true
+    append_user_agent: "atmos-aft/0.1 (https://github.com/davenicoll/atmos-aft)"
+    command: "terraform"
+
+stacks:
+  base_path: "stacks"
+  included_paths:
+    - "orgs/**/*"
+  excluded_paths:
+    - "**/_defaults.yaml"
+    - "catalog/**/*"
+    - "mixins/**/*"
+  name_pattern: "{tenant}-{environment}-{stage}"
+
+workflows:
+  base_path: "stacks/workflows"
+
+schemas:
+  jsonschema:
+    base_path: "stacks/schemas/jsonschema"
+  opa:
+    base_path: "stacks/schemas/opa"
+
+vendor:
+  base_path: "vendor.yaml"
+
+logs:
+  file: "/dev/stderr"
+  level: "Info"
+
+# CI awareness — Atmos auto-detects GitHub Actions when enabled.
+ci:
+  enabled: true
+
+templates:
+  settings:
+    enabled: true
+    sprig:
+      enabled: true
+    gomplate:
+      enabled: true
+      timeout: 5
+
+# ---------------------------------------------------------------------------
+# Stores — referenced by components via !store and hooks.store-outputs.
+# See atmos-model.md §8 and gha-design.md §7.
+# ---------------------------------------------------------------------------
+stores:
+  ssm-plan-meta:
+    type: aws-ssm-parameter-store
+    options:
+      region: !env ATMOS_SSM_REGION "us-east-1"
+      prefix: "/atmos/plans"
+      read_only: false
+  # ssm-account-status — canonical namespace written by the publish-status
+  # composite action (.github/actions/publish-status/action.yml). Parameter
+  # layout per account is:
+  #   /aft/account/<name>/account-id               (written by account-provisioning after-apply hook)
+  #   /aft/account/<name>/status                   provisioning|baseline-deployed|customized|drift|
+  #                                                failed|closing|destroyed|destroy-stuck|ct-confirmed
+  #   /aft/account/<name>/status-updated-at        ISO-8601 timestamp
+  #   /aft/account/<name>/stack                    last stack touched (optional)
+  #   /aft/account/<name>/triggered_by_sha         commit SHA that triggered the run
+  #   /aft/account/<name>/triggered_by_commit_author
+  #   /aft/account/<name>/last-run-id              GHA run id
+  #   /aft/account/<name>/last-workflow            GHA workflow name
+  #   /aft/account/<name>/destroyed_at             ISO-8601 timestamp (destroy-account.yaml only)
+  #   /aft/account/<name>/email                    account_email captured at destroy time
+  #
+  # The destroyed_at + email pair underpins the 7-day cooldown guard in
+  # pr.yaml — see catalog/account-provisioning/defaults.yaml for the read
+  # pattern. Any key the publish-status composite is invoked with via its
+  # `extra` input lands under this same prefix.
+  ssm-account-status:
+    type: aws-ssm-parameter-store
+    options:
+      region: !env ATMOS_SSM_REGION "us-east-1"
+      prefix: "/aft/account"
+      read_only: false
+
+# ---------------------------------------------------------------------------
+# Auth — the cross-account role chain is split across two layers:
+#
+#   1. gha-oidc → central hop lives in the `configure-aws` composite action
+#      (.github/actions/configure-aws/action.yml). That action assumes one of
+#      AtmosCentralDeploymentRole / AtmosPlanOnlyRole via OIDC (or an IAM-user
+#      bootstrap key pair in access_key mode) and exports AWS_* creds.
+#
+#   2. central → target hop happens inside Terraform itself. Every component's
+#      `provider "aws"` block has a `dynamic "assume_role"` that is rendered
+#      iff `var.target_role_arn` is non-empty. The calling workflow sets
+#      TF_VAR_target_role_arn after resolve-stack so Terraform STS-assumes the
+#      right role (AtmosDeploymentRole for deploy, AtmosDeploymentRole-ReadOnly
+#      for PR plan / drift, OAAR or AWSControlTowerExecution for bootstrap).
+#
+# Why this split (see #26 for the full analysis): Atmos 1.203 rejects the
+# aws-oidc provider kind, so the native `auth:` providers/identities block
+# isn't an option. Instead of re-implementing Atmos's chain renderer, we let
+# Terraform handle the target hop natively via provider assume_role and let
+# configure-aws own the OIDC hop. TF_VAR_target_role_arn is the single
+# contract between the GHA workflow and the component.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Custom commands — wrappers invoked from workflows / make targets.
+# See gha-design.md §5 and testing-strategy.md.
+# ---------------------------------------------------------------------------
+commands:
+  - name: "validate-all"
+    description: "Run atmos validate against every stack"
+    steps:
+      - "atmos describe stacks --format json > /tmp/atmos-stacks.json"
+      - |
+        for stack in $(jq -r 'keys[]' /tmp/atmos-stacks.json); do
+          echo "=== validating $stack ==="
+          atmos validate stacks --stack "$stack"
+        done
+  - name: "affected-matrix"
+    description: "Emit GHA job matrix of affected components (stack,component)"
+    steps:
+      - "atmos describe affected --format json --ref origin/main"
+
+settings:
+  list_merge_strategy: "replace"

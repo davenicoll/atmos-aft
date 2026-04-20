@@ -1,0 +1,9 @@
+components:
+  terraform:
+    github-oidc-provider:
+      metadata:
+        component: github-oidc-provider
+      vars:
+        github_oidc_host: token.actions.githubusercontent.com
+        client_id_list:
+          - sts.amazonaws.com

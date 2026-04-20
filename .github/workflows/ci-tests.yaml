@@ -1,0 +1,174 @@
+name: ci-tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_terratest:
+        description: "Also run the Terratest tier (slow, may need AWS creds)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ci-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: static (atmos + fmt + validate + tflint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/install-gha-cli-deps
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.54.0
+      - name: atmos validate stacks
+        shell: bash
+        run: atmos validate stacks
+      - name: atmos describe stacks
+        shell: bash
+        run: atmos describe stacks --format json > "$RUNNER_TEMP/stacks.json"
+      - name: terraform fmt -check -recursive
+        shell: bash
+        run: terraform fmt -check -recursive components/terraform
+      - name: terraform validate (per component)
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=()
+          while IFS= read -r dir; do
+            echo "::group::$dir"
+            if ! (cd "$dir" && terraform init -backend=false -input=false > /dev/null && terraform validate); then
+              failures+=("$dir")
+            fi
+            echo "::endgroup::"
+          done < <(find components/terraform -type f -name '*.tf' -exec dirname {} \; | sort -u)
+          if [[ ${#failures[@]} -gt 0 ]]; then
+            printf '::error::terraform validate failed in:\n%s\n' "${failures[@]}"
+            exit 1
+          fi
+      - name: tflint
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r dir; do
+            echo "::group::$dir"
+            (cd "$dir" && tflint --minimum-failure-severity=warning) || exit 1
+            echo "::endgroup::"
+          done < <(find components/terraform -type f -name '*.tf' -exec dirname {} \; | sort -u)
+
+  opa:
+    name: opa (policy unit tests + conftest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/install-gha-cli-deps
+      - name: opa test
+        shell: bash
+        run: opa test .github/policies tests/opa -v
+      - name: conftest against stacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          atmos describe stacks --format json \
+            | conftest test --policy .github/policies --all-namespaces -
+
+  act:
+    name: act (workflow smoke)
+    needs: static
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        entry:
+          - pr.yaml
+          - push-main.yaml
+          - provision-account.yaml
+          - customize-fleet.yaml
+          - drift-detection.yaml
+          - destroy-account.yaml
+          - bootstrap.yaml
+          - import-existing-account.yaml
+          - vendor-refresh.yaml
+          - notify.yaml
+          - ct-lifecycle-event.yaml
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip when entry workflow not yet landed
+        id: gate
+        shell: bash
+        env:
+          WF: .github/workflows/${{ matrix.entry }}
+        run: |
+          if [[ ! -f "$WF" ]]; then
+            echo "::notice::entry workflow $WF not yet landed (task #21); skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install act
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
+        run: curl -sSL https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash -s -- -b /usr/local/bin v0.2.68
+      - name: act dry-run
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
+        env:
+          WF: .github/workflows/${{ matrix.entry }}
+          FIXTURE_DIR: tests/act/events
+        run: |
+          set -euo pipefail
+          fixture=""
+          name="${WF##*/}"
+          candidate="${FIXTURE_DIR}/${name%.yaml}.json"
+          if [[ -f "$candidate" ]]; then
+            fixture="-e $candidate"
+          fi
+          # --list proves the workflow parses; --dryrun proves step graph resolves.
+          act --list -W "$WF" $fixture
+          act --dryrun -W "$WF" $fixture
+
+  terratest:
+    name: terratest (optional)
+    needs: static
+    if: |
+      github.event_name == 'push'
+      || (github.event_name == 'workflow_dispatch' && inputs.run_terratest)
+      || vars.RUN_TERRATEST_ON_PR == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: tests/terratest/go.sum
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/install-gha-cli-deps
+      - name: Ensure go.sum is present
+        shell: bash
+        working-directory: tests/terratest
+        run: |
+          if [[ ! -f go.sum ]]; then
+            go mod download
+          fi
+      - name: Run Terratest
+        shell: bash
+        working-directory: tests/terratest
+        env:
+          TT_ENABLE_TAGS: ${{ vars.TT_ENABLE_TAGS }}
+        run: go test -v -timeout 90m -tags "$TT_ENABLE_TAGS" ./...

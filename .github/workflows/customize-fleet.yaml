@@ -1,0 +1,131 @@
+name: customize-fleet
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "all | changed | stack:<name> | component:<n>"
+        required: true
+        default: changed
+        type: string
+      dry_run:
+        description: "plan only, do not apply"
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: customize-fleet-${{ github.event.inputs.scope || 'scheduled' }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-targets:
+    name: resolve targets
+    runs-on: ubuntu-latest
+    environment: aft-mgmt
+    timeout-minutes: 15
+    outputs:
+      targets: ${{ steps.r.outputs.targets }}
+      has_targets: ${{ steps.r.outputs.has_targets }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/configure-aws
+        with:
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ vars.AWS_REGION }}
+          role_session_name: atmos-customize-fleet-resolve
+      - id: r
+        shell: bash
+        env:
+          SCOPE: ${{ inputs.scope || 'changed' }}
+        run: |
+          set -euo pipefail
+          case "$SCOPE" in
+            all)
+              atmos list stacks --format json > "$RUNNER_TEMP/stacks.json"
+              targets=$(jq -c '[.[] | .]' "$RUNNER_TEMP/stacks.json")
+              ;;
+            changed)
+              atmos describe affected --ref origin/main~1 --format json \
+                | jq -c '[.[].stack] | unique' > "$RUNNER_TEMP/stacks.json"
+              targets=$(cat "$RUNNER_TEMP/stacks.json")
+              ;;
+            stack:*)
+              targets=$(jq -cn --arg s "${SCOPE#stack:}" '[$s]')
+              ;;
+            component:*)
+              atmos list stacks --component "${SCOPE#component:}" --format json > "$RUNNER_TEMP/stacks.json"
+              targets=$(jq -c '[.[] | .]' "$RUNNER_TEMP/stacks.json")
+              ;;
+            *)
+              echo "::error::unknown scope: $SCOPE"
+              exit 1
+              ;;
+          esac
+          count=$(jq 'length' <<<"$targets")
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "has_targets=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  chunk:
+    name: chunk matrix
+    needs: resolve-targets
+    if: needs.resolve-targets.outputs.has_targets == 'true'
+    uses: ./.github/workflows/_matrix-chunk.yaml
+    with:
+      targets: ${{ needs.resolve-targets.outputs.targets }}
+      chunk_size: 200
+      downstream_workflow: customize-global
+    secrets: inherit
+
+  customize-global:
+    name: customize-global
+    needs: chunk
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: ${{ fromJSON(needs.chunk.outputs.chunks) }}
+    uses: ./.github/workflows/_customize-global.yaml
+    with:
+      target_stacks: ${{ toJSON(matrix.chunk) }}
+      environment: prod
+    secrets: inherit
+
+  customize-account:
+    name: customize-account
+    needs: [chunk, customize-global]
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: ${{ fromJSON(needs.chunk.outputs.chunks) }}
+    uses: ./.github/workflows/_customize-account.yaml
+    with:
+      target_stacks: ${{ toJSON(matrix.chunk) }}
+      environment: prod
+    secrets: inherit
+
+  report:
+    name: report
+    needs: [customize-global, customize-account]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          {
+            echo "# customize-fleet summary"
+            echo ""
+            echo "- customize-global: ${{ needs.customize-global.result }}"
+            echo "- customize-account: ${{ needs.customize-account.result }}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,10 @@
+# Log archive account class. CT-provisioned. Holds CT org-trail bucket,
+# centralized-logging-bucket, access-logs-bucket, cloudtrail-additional.
+vars:
+  account_class: log-archive
+  bootstrap_role: OrganizationAccountAccessRole
+components:
+  terraform:
+    iam-deployment-roles/target:
+      vars:
+        account_class: log-archive

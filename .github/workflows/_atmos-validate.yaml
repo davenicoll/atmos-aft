@@ -1,0 +1,60 @@
+name: _atmos-validate
+
+on:
+  workflow_call:
+    inputs:
+      policies_path:
+        required: false
+        type: string
+        default: .github/policies
+      fmt_check:
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      opa_violations:
+        description: "Number of OPA policy violations"
+        value: ${{ jobs.validate.outputs.opa_violations }}
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      opa_violations: ${{ steps.opa.outputs.violations }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - uses: ./.github/actions/install-gha-cli-deps
+      - name: atmos validate stacks
+        shell: bash
+        run: atmos validate stacks
+      - name: terraform fmt -check -recursive
+        if: inputs.fmt_check
+        shell: bash
+        run: terraform fmt -check -recursive components/terraform
+      - id: opa
+        name: OPA policy check
+        shell: bash
+        env:
+          POLICIES: ${{ inputs.policies_path }}
+        run: |
+          set -euo pipefail
+          stacks_json="$RUNNER_TEMP/stacks.json"
+          atmos describe stacks --format json > "$stacks_json"
+          if [[ ! -d "$POLICIES" ]]; then
+            echo "::notice::policies path '$POLICIES' not found; skipping OPA"
+            echo "violations=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          result="$(opa eval -f pretty -b "$POLICIES" -i "$stacks_json" 'data.atmos.deny' || echo '[]')"
+          violations="$(echo "$result" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo 0)"
+          echo "violations=$violations" >> "$GITHUB_OUTPUT"
+          if [[ "$violations" != "0" ]]; then
+            echo "::error::OPA found $violations violations"
+            echo "$result"
+            exit 1
+          fi

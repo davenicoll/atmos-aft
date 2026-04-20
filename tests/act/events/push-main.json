@@ -1,0 +1,17 @@
+{
+  "ref": "refs/heads/main",
+  "before": "0000000000000000000000000000000000000000",
+  "after": "1111111111111111111111111111111111111111",
+  "head_commit": {
+    "id": "1111111111111111111111111111111111111111",
+    "message": "test: dispatcher fixture",
+    "author": {
+      "name": "act-fixture",
+      "email": "act@example.com"
+    }
+  },
+  "repository": {
+    "full_name": "davenicoll/atmos-aft",
+    "default_branch": "main"
+  }
+}

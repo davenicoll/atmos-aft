@@ -1,0 +1,18 @@
+# Stack name: core-gbl-log
+# Hosts: AtmosDeploymentRole (log-archive class). Centralised logging buckets
+# (centralized-logging-bucket, cloudtrail-additional) wire in here when the
+# corresponding catalog entries land — stub left minimal so a real deploy can
+# slot them in without restructuring the stack.
+import:
+  - orgs/example-accounts/_defaults
+  - mixins/tenant/core
+  - mixins/region/global
+  - mixins/stage/log
+  - catalog/account-classes/log-archive
+  - catalog/tfstate-backend/defaults
+  - catalog/iam-deployment-roles/target/defaults
+  - catalog/aws-account-settings/defaults
+
+vars:
+  account_id: "444444444444"
+  account_name: log-archive

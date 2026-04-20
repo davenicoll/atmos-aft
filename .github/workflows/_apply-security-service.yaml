@@ -1,0 +1,194 @@
+name: _apply-security-service
+run-name: "security-service: ${{ inputs.service }}"
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        required: true
+        type: string
+      mgmt_stack:
+        required: true
+        type: string
+      audit_stack:
+        required: true
+        type: string
+      target_stacks:
+        required: false
+        type: string
+        default: "[]"
+      propagation_wait_seconds:
+        required: false
+        type: number
+        default: 30
+      skip_if_already_applied:
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      phase1_status:
+        value: ${{ jobs.phase-1-delegate.result }}
+      phase2_status:
+        value: ${{ jobs.phase-2-org-config.result }}
+      phase3_status:
+        value: ${{ jobs.phase-3-member-settings.result }}
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      audit_account_id: ${{ steps.resolve.outputs.audit_account_id }}
+    steps:
+      - name: Guard — service must be one of the three
+        shell: bash
+        env:
+          SVC: ${{ inputs.service }}
+        run: |
+          case "$SVC" in
+            guardduty|security-hub|inspector2) ;;
+            *) echo "::error::service must be guardduty|security-hub|inspector2 (got '$SVC')"; exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: resolve
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ inputs.audit_stack }}
+        env: {}
+      - id: promote
+        shell: bash
+        run: echo "audit_account_id=${{ steps.resolve.outputs.account_id }}" >> "$GITHUB_OUTPUT"
+
+  precheck:
+    needs: validate
+    if: inputs.skip_if_already_applied
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      already_applied: ${{ steps.probe.outputs.already_applied }}
+    env:
+      AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: ctx
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ inputs.mgmt_stack }}
+      - uses: ./.github/actions/configure-aws
+        with:
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ steps.ctx.outputs.region }}
+      - id: probe
+        shell: bash
+        env:
+          SVC: ${{ inputs.service }}
+          AUDIT_ACCOUNT: ${{ needs.validate.outputs.audit_account_id }}
+        run: |
+          set -euo pipefail
+          found=false
+          case "$SVC" in
+            guardduty)
+              admins="$(aws guardduty list-organization-admin-accounts --query 'AdminAccounts[].AdminAccountId' --output text 2>/dev/null || echo "")"
+              ;;
+            security-hub)
+              admins="$(aws securityhub list-organization-admin-accounts --query 'AdminAccounts[].AccountId' --output text 2>/dev/null || echo "")"
+              ;;
+            inspector2)
+              admins="$(aws inspector2 list-delegated-admin-accounts --query 'delegatedAdminAccounts[].accountId' --output text 2>/dev/null || echo "")"
+              ;;
+          esac
+          if grep -qw "$AUDIT_ACCOUNT" <<< "$admins"; then
+            found=true
+          fi
+          echo "already_applied=$found" >> "$GITHUB_OUTPUT"
+
+  phase-1-delegate:
+    needs: [validate, precheck]
+    if: always() && !cancelled() && (needs.precheck.result == 'skipped' || needs.precheck.outputs.already_applied != 'true')
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ inputs.mgmt_stack }}
+      component: ${{ inputs.service }}-root
+    secrets: inherit
+
+  propagate:
+    needs: phase-1-delegate
+    if: always() && !cancelled() && needs.phase-1-delegate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: ctx
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ inputs.mgmt_stack }}
+      - uses: ./.github/actions/configure-aws
+        with:
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
+          region: ${{ steps.ctx.outputs.region }}
+      - name: Initial propagation wait
+        shell: bash
+        run: sleep ${{ inputs.propagation_wait_seconds }}
+      - name: Poll delegated-admin binding
+        shell: bash
+        env:
+          SVC: ${{ inputs.service }}
+          AUDIT_ACCOUNT: ${{ needs.validate.outputs.audit_account_id }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + 300 ))
+          while :; do
+            case "$SVC" in
+              guardduty)    admins="$(aws guardduty list-organization-admin-accounts --query 'AdminAccounts[].AdminAccountId' --output text 2>/dev/null || echo "")" ;;
+              security-hub) admins="$(aws securityhub list-organization-admin-accounts --query 'AdminAccounts[].AccountId' --output text 2>/dev/null || echo "")" ;;
+              inspector2)   admins="$(aws inspector2 list-delegated-admin-accounts --query 'delegatedAdminAccounts[].accountId' --output text 2>/dev/null || echo "")" ;;
+            esac
+            if grep -qw "$AUDIT_ACCOUNT" <<< "$admins"; then
+              echo "delegated admin propagated"
+              exit 0
+            fi
+            if (( $(date +%s) >= deadline )); then
+              echo "::error::propagation timeout after 5 min for $SVC → $AUDIT_ACCOUNT"
+              exit 1
+            fi
+            sleep 15
+          done
+
+  phase-2-org-config:
+    needs: propagate
+    if: always() && !cancelled() && needs.propagate.result == 'success'
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ inputs.audit_stack }}
+      component: ${{ inputs.service }}-delegated-admin
+    secrets: inherit
+
+  phase-3-member-settings:
+    needs: phase-2-org-config
+    if: always() && !cancelled() && needs.phase-2-org-config.result == 'success' && inputs.target_stacks != '[]' && inputs.target_stacks != ''
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        stack: ${{ fromJson(inputs.target_stacks) }}
+    uses: ./.github/workflows/_atmos-apply.yaml
+    with:
+      stack: ${{ matrix.stack }}
+      component: ${{ inputs.service }}-member-settings
+    secrets: inherit

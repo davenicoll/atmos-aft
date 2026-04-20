@@ -1,0 +1,31 @@
+# Stack name: plat-use1-dev
+# Vended account — provisioned by account-provisioning, baseline applied via
+# vended account class. guardduty-member-settings runs phase 3 of the 3-phase
+# rollout. GHA matrix handles cross-stack sequencing against audit's phase-2.
+import:
+  - orgs/example-accounts/_defaults
+  - mixins/tenant/plat
+  - mixins/region/us-east-1
+  - mixins/stage/dev
+  - catalog/account-classes/vended
+  - catalog/account-provisioning/defaults
+  - catalog/tfstate-backend/defaults
+  - catalog/iam-deployment-roles/target/defaults
+  - catalog/aws-account-settings/defaults
+  - catalog/guardduty-member-settings/defaults
+
+vars:
+  account_name: plat-dev
+  account_email: aws+plat-dev@acme.example
+  managed_organizational_unit: Sandbox
+  sso_user_email: platform-oncall@acme.example
+  sso_user_first_name: Platform
+  sso_user_last_name: Dev
+  account_tags:
+    owner: team-platform
+    cost_center: CC-9000
+    stage: dev
+  feature_options:
+    delete_default_vpcs_enabled: true
+    enterprise_support: false
+    cloudtrail_data_events: false

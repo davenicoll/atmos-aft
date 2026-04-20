@@ -1,0 +1,26 @@
+# Stack name: core-gbl-audit
+# Hosts: cloudtrail-lake, guardduty phase 2, security-hub aggregator,
+# AtmosDeploymentRole (audit class).
+import:
+  - orgs/example-accounts/_defaults
+  - mixins/tenant/core
+  - mixins/region/global
+  - mixins/stage/audit
+  - catalog/account-classes/audit
+  - catalog/tfstate-backend/defaults
+  - catalog/iam-deployment-roles/target/defaults
+  - catalog/aws-account-settings/defaults
+  - catalog/cloudtrail-lake/defaults
+  - catalog/guardduty-delegated-admin/defaults
+  - catalog/security-hub/defaults
+
+vars:
+  account_id: "333333333333"
+  account_name: audit
+
+components:
+  terraform:
+    security-hub:
+      vars:
+        finding_aggregator_enabled: true
+        set_delegated_admin_account_id: true

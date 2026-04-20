@@ -1,0 +1,21 @@
+{
+  "action": "opened",
+  "number": 42,
+  "pull_request": {
+    "number": 42,
+    "head": {
+      "ref": "feature/test",
+      "sha": "0000000000000000000000000000000000000001"
+    },
+    "base": {
+      "ref": "main",
+      "sha": "0000000000000000000000000000000000000000"
+    },
+    "labels": [],
+    "body": ""
+  },
+  "repository": {
+    "full_name": "davenicoll/atmos-aft",
+    "default_branch": "main"
+  }
+}

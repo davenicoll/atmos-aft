@@ -1,0 +1,60 @@
+# Scratch / reference material (not committed)
+reference/
+
+# Claude Code runtime state (agent memory, scheduled tasks, etc.)
+.claude/
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+
+# Terraform state (must never be committed — state lives in per-account S3)
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+*.tfvars.json
+crash.log
+crash.*.log
+
+# Terraform planfiles — generated in plan jobs, consumed in apply jobs, never committed
+*.planfile
+*.plan
+*.plan.bin
+*.plan.json
+
+# Atmos cache (plan outputs, describe-affected snapshots)
+.atmos/
+atmos-stacks.json
+
+# Testing caches / artifacts
+tests/**/.test-cache/
+tests/**/artifacts/
+tests/act/.artifacts/
+coverage/
+*.cover
+*.coverage
+
+# Node (for OPA/Rego tooling, act wrappers, docs generators)
+node_modules/
+npm-debug.log*
+yarn-error.log
+
+# Python (for helper scripts)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+
+# Build output
+dist/
+build/

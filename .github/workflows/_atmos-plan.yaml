@@ -1,0 +1,132 @@
+name: _atmos-plan
+run-name: "plan: ${{ inputs.component }} @ ${{ inputs.stack }}"
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        required: true
+        type: string
+      component:
+        required: true
+        type: string
+      upload_planfile:
+        required: false
+        type: boolean
+        default: true
+      plan_store:
+        required: false
+        type: string
+        default: s3
+      region:
+        required: false
+        type: string
+        default: ""
+      identity:
+        required: false
+        type: string
+        default: default
+      central_role_arn:
+        description: "Override central role ARN (e.g. AtmosPlanOnlyRole for PR/drift). Empty = fall back to vars.ATMOS_CENTRAL_ROLE_ARN."
+        required: false
+        type: string
+        default: ""
+      target_role_name:
+        description: "Target-account role name. Default AtmosDeploymentRole; set to AtmosDeploymentRoleReadOnly for plan-only invocations per gha-design §4.3."
+        required: false
+        type: string
+        default: AtmosDeploymentRole
+    outputs:
+      has_changes:
+        description: "true if the plan contains changes"
+        value: ${{ jobs.plan.outputs.has_changes }}
+      has_destructions:
+        description: "true if the plan would destroy resources"
+        value: ${{ jobs.plan.outputs.has_destructions }}
+      planfile_key:
+        description: "S3 key or artifact name of the stored planfile"
+        value: ${{ jobs.plan.outputs.planfile_key }}
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      PLAN_STORAGE_BUCKET:
+        required: false
+      PLAN_STORAGE_TABLE:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      has_changes: ${{ steps.summary.outputs.has_changes }}
+      has_destructions: ${{ steps.plan.outputs.has_destructions }}
+      planfile_key: ${{ steps.upload.outputs.planfile_key }}
+    env:
+      AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atmos
+      - id: ctx
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ inputs.stack }}
+          component: ${{ inputs.component }}
+          target_role_name: ${{ inputs.target_role_name }}
+      - uses: ./.github/actions/configure-aws
+        with:
+          central_role_arn: ${{ inputs.central_role_arn != '' && inputs.central_role_arn || vars.ATMOS_CENTRAL_ROLE_ARN }}
+          target_role_arn: ${{ steps.ctx.outputs.target_role_arn }}
+          region: ${{ inputs.region != '' && inputs.region || steps.ctx.outputs.region }}
+          identity: ${{ inputs.identity }}
+      - id: plan
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          set -euo pipefail
+          plan_out="$RUNNER_TEMP/plan-${COMPONENT//\//-}-${STACK}.bin"
+          atmos terraform plan "$COMPONENT" -s "$STACK" --ci -out "$plan_out"
+          echo "plan_out=$plan_out" >> "$GITHUB_OUTPUT"
+          json="$(terraform -chdir="components/terraform/${COMPONENT}" show -json "$plan_out")"
+          destroy_count="$(echo "$json" | jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length')"
+          echo "has_destructions=$([[ $destroy_count -gt 0 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - id: summary
+        uses: ./.github/actions/post-plan-summary
+        with:
+          plan_file: ${{ steps.plan.outputs.plan_out }}
+          stack: ${{ inputs.stack }}
+          component: ${{ inputs.component }}
+          working_directory: components/terraform/${{ inputs.component }}
+      - id: upload
+        if: inputs.upload_planfile
+        shell: bash
+        env:
+          STACK: ${{ inputs.stack }}
+          COMPONENT: ${{ inputs.component }}
+          PLAN_FILE: ${{ steps.plan.outputs.plan_out }}
+          BUCKET: ${{ secrets.PLAN_STORAGE_BUCKET }}
+          TABLE: ${{ secrets.PLAN_STORAGE_TABLE }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.plan_store }}" == "s3" && -n "$BUCKET" ]]; then
+            key="plans/${GITHUB_SHA}/${COMPONENT//\//-}-${STACK}.bin"
+            aws s3 cp "$PLAN_FILE" "s3://${BUCKET}/${key}"
+            echo "planfile_key=$key" >> "$GITHUB_OUTPUT"
+          else
+            echo "planfile_key=artifact:plan-${COMPONENT//\//-}-${STACK}" >> "$GITHUB_OUTPUT"
+          fi
+      - if: inputs.upload_planfile && inputs.plan_store == 'artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-${{ inputs.component }}-${{ inputs.stack }}
+          path: ${{ steps.plan.outputs.plan_out }}
+          retention-days: 7
