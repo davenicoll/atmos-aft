@@ -83,8 +83,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          atmos describe stacks --format json --logs-level Error 2>/dev/null \
-            | conftest test --parser json --policy .github/policies --all-namespaces -
+          atmos describe stacks --format json --logs-level Error > /tmp/atmos-stacks.raw 2>/dev/null
+          # Strip any progress prefix atmos emits on stdout before the JSON body
+          sed -n '/^[[:space:]]*[{[]/,$p' /tmp/atmos-stacks.raw > /tmp/atmos-stacks.json
+          conftest test --parser json --policy .github/policies --all-namespaces /tmp/atmos-stacks.json
 
   act:
     name: act (workflow smoke)
