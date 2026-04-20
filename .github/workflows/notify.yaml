@@ -20,6 +20,7 @@ concurrency:
 jobs:
   dispatch:
     name: publish notifications
+    if: github.repository != 'davenicoll/atmos-aft'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

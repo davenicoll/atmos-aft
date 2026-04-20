@@ -20,6 +20,7 @@ concurrency:
 jobs:
   archive:
     name: archive client_payload to S3
+    if: github.repository != 'davenicoll/atmos-aft'
     runs-on: ubuntu-latest
     environment: aft-mgmt
     timeout-minutes: 10

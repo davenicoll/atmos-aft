@@ -27,6 +27,7 @@ concurrency:
 jobs:
   resolve-targets:
     name: resolve targets
+    if: github.repository != 'davenicoll/atmos-aft'
     runs-on: ubuntu-latest
     environment: aft-mgmt
     timeout-minutes: 15

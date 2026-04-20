@@ -20,6 +20,7 @@ concurrency:
 jobs:
   affected:
     name: describe affected
+    if: github.repository != 'davenicoll/atmos-aft'
     runs-on: ubuntu-latest
     environment: aft-mgmt
     timeout-minutes: 15

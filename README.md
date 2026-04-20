@@ -128,6 +128,10 @@ Before running atmos-aft's bootstrap:
 6. **Service Catalog Account Factory portfolio** shared with the atmos-aft management account (handled by `iam-roles-management`'s `associate_aft_service_role_with_account_factory` step if missing).
 7. **CloudTrail Lake event data store** in the audit account, or provision via the `cloudtrail-lake` component during bootstrap.
 
+### Forking for a deployment
+
+Factory-runtime workflows — `pr.yaml`, `push-main.yaml`, `drift-detection.yaml`, `customize-fleet.yaml`, `vendor-refresh.yaml`, `notify.yaml`, `ct-lifecycle-event.yaml` — are gated on `github.repository != 'davenicoll/atmos-aft'` at their top-level jobs. In the source repo they skip (green check, no AWS calls); in any fork or deployment repo the condition is always true and they fire normally with no additional configuration. Reusable (`_*.yaml`) and dispatch-only workflows (`bootstrap`, `destroy-account`, `import-existing-account`, `custom-provisioning-hook`) are not gated — the reusables inherit their caller's gate, and the dispatch-only set cannot auto-fire. To suppress a specific workflow in a fork without deleting it, use GitHub's repo-level workflow-disable or add an explicit `DISABLE_<NAME>` repo variable and extend the `if:` expression.
+
 ### Supported regions
 
 atmos-aft must run in the CT home region. Multi-region workloads are supported inside each account via the standard Atmos region mixin (`stacks/mixins/region/*.yaml`).
