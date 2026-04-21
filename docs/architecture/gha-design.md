@@ -2,13 +2,11 @@
 
 This document specifies the GitHub Actions topology that replaces AFT's CodeBuild/CodePipeline/Step-Functions runtime substrate. Every CodeBuild project and CodePipeline enumerated in `docs/architecture/aft-analysis.md` §3 has an explicit GHA equivalent here.
 
-**Status.** Phase 1, design only. No workflow YAML ships in Phase 1 — this document is the spec that Phase 2 implements.
-
-**Inputs.**
+**Companion docs.**
 - `docs/architecture/aft-analysis.md` — AFT ground truth.
 - `docs/architecture/atmos-model.md` — Atmos mental model.
 - `docs/architecture/mapping.md` — AFT-to-Atmos concept mapping and the "does not map cleanly" list (§9) whose items this design closes.
-- `docs/architecture/module-inventory.md` — Cloudposse modules that will back the components.
+- `docs/architecture/module-inventory.md` — Cloudposse modules that back the components.
 
 **What is configurable, what is not.** The topology is deliberately a single shape with a small number of deployment-time switches. The two switches that matter are:
 
@@ -58,7 +56,7 @@ One repository, called `atmos-aft` by convention, hosts:
 
 ### 2.2 Multi-repo: rejected, conditions for revisiting
 
-We would reconsider multi-repo only if: (a) customers demand their customization code not live in the platform repo for compliance reasons (SOC2 boundary, separate legal entity); or (b) the component tree grows past ~200 vendored modules where vendor-pull times dominate CI. Neither is true at Phase 1 scale.
+We would reconsider multi-repo only if: (a) customers demand their customization code not live in the platform repo for compliance reasons (SOC2 boundary, separate legal entity); or (b) the component tree grows past ~200 vendored modules where vendor-pull times dominate CI. Neither is true at current scale.
 
 If (a) appears, the minimum split is two repos: `atmos-aft-core` (this one) and `atmos-aft-customizations` (customer-owned, consumed via `atmos vendor pull` of a pinned ref). The `customize-*` reusable workflows in this design already accept a `customizations_source_ref` input (§6.5) so this split is non-breaking.
 
@@ -457,7 +455,7 @@ AtmosCentralDeploymentRole (in atmos-aft mgmt)
 AWSControlTowerExecution (in newly vended account, stamped by CT Account Factory)
 ```
 
-For the four CT-managed accounts (CT-mgmt, AFT-mgmt, audit, log-archive) where `AWSControlTowerExecution` does not exist, the equivalent fallback is `OrganizationAccountAccessRole`. Bootstrap stamping of `AtmosDeploymentRole` into those four accounts runs inside `bootstrap.yaml` (§5.8) using the same alias configured to `OrganizationAccountAccessRole` — see task #10 for the placement rules.
+For the four CT-managed accounts (CT-mgmt, AFT-mgmt, audit, log-archive) where `AWSControlTowerExecution` does not exist, the equivalent fallback is `OrganizationAccountAccessRole`. Bootstrap stamping of `AtmosDeploymentRole` into those four accounts runs inside `bootstrap.yaml` (§5.8) using the same alias configured to `OrganizationAccountAccessRole`.
 
 **Atmos `auth:` alias.** `atmos.yaml` defines a second provider alias `target-bootstrap` that differs from `target` only in the role ARN path:
 
@@ -485,7 +483,7 @@ components:
           bootstrap: { default: true }
 ```
 
-Every other component defaults to `identities.default` (`target` provider). Phase 2's first applies of the two bootstrap stacks therefore automatically resolve to `AWSControlTowerExecution`; from job 5 onwards, Atmos resolves to `AtmosDeploymentRole` with no workflow change.
+Every other component defaults to `identities.default` (`target` provider). The first applies of the two bootstrap stacks therefore automatically resolve to `AWSControlTowerExecution`; from job 5 onwards, Atmos resolves to `AtmosDeploymentRole` with no workflow change.
 
 **Central role permissions.** `AtmosCentralDeploymentRole`'s attached policy must allow `sts:AssumeRole` on both:
 
@@ -576,7 +574,7 @@ The CT-vended bootstrap roles (`AWSControlTowerExecution`, `OrganizationAccountA
 - `${atmos_external_id}` — a static per-org UUID stored in GHA vars (`ATMOS_EXTERNAL_ID`). Required in the four CT-core placements; optional (and omitted) in vended-account placements.
 - `aws:userid` match on `atmos-*` session names enforces that assumptions are via Atmos-tagged sessions only (the `configure-aws` composite sets `role-session-name=atmos-<workflow>-<run_id>`).
 
-**Policy attached.** `AdministratorAccess` managed policy in all five classes. Justification: `AtmosDeploymentRole` is the last hop; any capability restriction belongs at `AtmosCentralDeploymentRole`'s resource-list on `sts:AssumeRole` (already pinned to `*:role/AtmosDeploymentRole` via §4.5), or in SCPs on the OU. A per-component least-privilege boundary is explicitly out of scope for Phase 1 and tracked in §12.3.
+**Policy attached.** `AdministratorAccess` managed policy in all five classes. Justification: `AtmosDeploymentRole` is the last hop; any capability restriction belongs at `AtmosCentralDeploymentRole`'s resource-list on `sts:AssumeRole` (already pinned to `*:role/AtmosDeploymentRole` via §4.5), or in SCPs on the OU. A per-component least-privilege boundary is explicitly out of scope — see §12.
 
 **Stamping path for CT-core accounts.** The four CT-managed accounts predate Atmos, so the bootstrap chain must reach into them before `AtmosDeploymentRole` exists:
 
@@ -931,7 +929,7 @@ wait-for-suspended:
       # retries every 60s for up to 30 min
 ```
 
-Total budget 45 min (AWS docs: CT account closure is typically 15-30 min, tail to ~40 min observed). On `timeout-minutes` the job fails, the `finalize` job runs via `if: always()` and writes `status=destroy-stuck`. A separate `reconcile-destroyed.yaml` scheduled workflow (§5.11.1, added in phase 2) periodically rescans `status=destroy-stuck` accounts and, if CT has since completed, promotes them to `destroyed`.
+Total budget 45 min (AWS docs: CT account closure is typically 15-30 min, tail to ~40 min observed). On `timeout-minutes` the job fails, the `finalize` job runs via `if: always()` and writes `status=destroy-stuck`. A separate `reconcile-destroyed.yaml` scheduled workflow (§5.11.1) periodically rescans `status=destroy-stuck` accounts and, if CT has since completed, promotes them to `destroyed`.
 
 **Cooldown guard on re-provision.** Even with the polling job, re-adding the same stack file (same account email) within 7 days of closure races CT's `SUSPENDED → ready-for-reuse` window. `pr.yaml` `policy` job rejects any PR that adds a stack whose email matches an SSM record in `status=closing` or has `destroyed_at` within 7 days unless the PR carries a `cooldown-override` label (requires `AtmosAdmin` team approval).
 
@@ -967,13 +965,13 @@ Total budget 45 min (AWS docs: CT account closure is typically 15-30 min, tail t
 
    Sequential, not parallel: `AtmosCentralDeploymentRole`'s cross-account `sts:AssumeRole` policy was created in step 3, so transient IAM propagation is the likely failure mode. Serial runs give per-account failure attribution and avoid thundering-herd on the policy evaluator.
 
-6. **Stamp per-account `tfstate-backend` into each of the four CT-managed core accounts.** Same four-call pattern as step 5 (same skip rule for 5b/6b when `separate_aft_mgmt_account=false`), but `component=tfstate-backend`. Each apply creates the core account's primary state bucket + CMK per `atmos-model.md` §9.3. State for this apply is kept at `bootstrap/<account-id>/tfstate-backend/terraform.tfstate` in the central bootstrap bucket; migrating into the bucket it just created is a Phase 2 housekeeping item, not a bootstrap step.
+6. **Stamp per-account `tfstate-backend` into each of the four CT-managed core accounts.** Same four-call pattern as step 5 (same skip rule for 5b/6b when `separate_aft_mgmt_account=false`), but `component=tfstate-backend`. Each apply creates the core account's primary state bucket + CMK per `atmos-model.md` §9.3. State for this apply is kept at `bootstrap/<account-id>/tfstate-backend/terraform.tfstate` in the central bootstrap bucket; migrating into the bucket it just created is a housekeeping item, not a bootstrap step.
 
 7. **Fleet-security phase 1+2 initialisation.** For each of `guardduty`, `security-hub`, `inspector2`, call `_apply-security-service.yaml` (§6.10) with `mgmt_stack=<ct-mgmt-stack>`, `audit_stack=<audit-stack>`, `target_stacks='[]'` (empty), `skip_if_already_applied=false`. This runs phases 1 and 2 of each service (delegated-admin registration in the CT management account, then org-wide config in the audit account). Phase 3 is skipped because there are no member accounts to enrol yet. The three services are called sequentially (guardduty → security-hub → inspector2) to avoid contention on the audit account's IAM. These applies use the default (non-bootstrap) identity — `AtmosDeploymentRole` now exists in CT-mgmt and audit (stamped in step 5). **Preconditions:** the CT audit and log-archive core accounts must already exist as Control Tower core accounts (enforced by CT landing-zone setup out-of-band, before this workflow runs). The bootstrap workflow fails fast if `aws organizations describe-account --account-id <audit>` does not return `Status=ACTIVE`.
 
 8. Write to step summary: `AtmosCentralDeploymentRole` ARN; bootstrap bucket name; `AtmosDeploymentRole` ARN in each of the four core accounts (three when `separate_aft_mgmt_account=false`); per-account primary tfstate bucket names; per-service `<service>-delegated-admin` status.
 
-**Not in this workflow.** Migration of any state from the central bootstrap bucket into aft-mgmt's primary bucket. `github-oidc-provider` and `iam-deployment-roles/central` state stays in the bootstrap bucket for Phase 1 — tracked as housekeeping in `atmos-model.md` §9.3.5.
+**Not in this workflow.** Migration of any state from the central bootstrap bucket into aft-mgmt's primary bucket. `github-oidc-provider` and `iam-deployment-roles/central` state stays in the bootstrap bucket — tracked as housekeeping in `atmos-model.md` §9.3.5.
 
 **Environment.** `bootstrap` — requires admin approval; access-key pair lives in environment secrets and is rotated after bootstrap completes.
 
@@ -1076,7 +1074,7 @@ permissions:
 - 14-day message retention (`message_retention_seconds: 1209600`)
 - CloudWatch alarm on `ApproximateNumberOfMessagesVisible > 0` → SNS to platform-ops
 - IAM: EventBridge role gets `sqs:SendMessage` on DLQ ARN only
-- Replay via a single-loop runbook operation (`aws events put-events` per DLQ message, or an operator-triggered Lambda in Phase 2 if replay becomes frequent)
+- Replay via a single-loop runbook operation (`aws events put-events` per DLQ message, or an operator-triggered Lambda if replay becomes frequent)
 
 Rationale (aws-architect, `review.md` §6 decisions log): S3 archive was rejected because building replay tooling is a new burden; SQS DLQ gives 14-day cover with single-loop replay semantics that Ops already know from other API-destination integrations.
 
@@ -1308,7 +1306,7 @@ phase-3-member-settings    ->  matrix of _atmos-apply.yaml over target_stacks
 
 **Error recovery.** If phase 2 fails after phase 1 succeeded, the partial state is: delegated-admin registered but org config not applied. Re-running the workflow from scratch is safe — phase 1 is idempotent and phase 2 picks up where it left off. If phase 1 itself fails mid-apply (rare; single API call), state drift is recoverable via `terraform taint` on `aws_<service>_organization_admin_account` and re-running.
 
-**Empirical tuning (post-launch).** Default `propagation_wait_seconds=30` is sized for Phase 1 against typical IAM propagation latency; `list-organization-admin-accounts` can occasionally return "present" before the audit-account SLR is fully usable cross-account (aws-architect review, `review.md` §6 decisions log). The AWS Terraform provider's built-in service-API retries absorb this, and phase 2 is idempotent on re-run. Mitigation if ops dashboards show repeated phase-2 retries: bump `propagation_wait_seconds` default to 60–90 via the workflow input. No design change required; this is an empirical tunable, like the `max-parallel` values in §8.3.
+**Empirical tuning (post-launch).** Default `propagation_wait_seconds=30` is sized against typical IAM propagation latency; `list-organization-admin-accounts` can occasionally return "present" before the audit-account SLR is fully usable cross-account (aws-architect review, `review.md` §6 decisions log). The AWS Terraform provider's built-in service-API retries absorb this, and phase 2 is idempotent on re-run. Mitigation if ops dashboards show repeated phase-2 retries: bump `propagation_wait_seconds` default to 60–90 via the workflow input. No design change required; this is an empirical tunable, like the `max-parallel` values in §8.3.
 
 ---
 
@@ -1417,7 +1415,7 @@ This is the direct analogue of AFT's `aft-invoke-customizations` SFN's Distribut
 
 #### 8.2.3 Cross-workflow dispatch (> 2000 instances)
 
-At true fleet scale (> 10 chunks of 200) a single parent workflow cannot enumerate without hitting GHA's 1000-job-per-workflow cap. In that case, the parent workflow uses `gh workflow run` to dispatch independent `customize-fleet.yaml --scope chunk:<N>` runs, each with its own concurrency group. This is not required for Phase 1 (< 100 accounts) but the code path is reserved.
+At true fleet scale (> 10 chunks of 200) a single parent workflow cannot enumerate without hitting GHA's 1000-job-per-workflow cap. In that case, the parent workflow uses `gh workflow run` to dispatch independent `customize-fleet.yaml --scope chunk:<N>` runs, each with its own concurrency group. Not required at current fleet scale (< 100 accounts); the code path is reserved.
 
 ### 8.3 Matrix parallelism tuning
 
@@ -1661,7 +1659,7 @@ Every AFT CodeBuild project and CodePipeline enumerated in `aft-analysis.md` §3
 
 ### 11.3 Step Functions
 
-Included for completeness even though not in task #3 title; the SFNs are the other half of AFT's pipeline runtime.
+The SFNs are the other half of AFT's pipeline runtime; their GHA replacements are listed here for completeness.
 
 | AFT SFN | `aft-analysis.md` ref | GHA replacement |
 |---|---|---|
@@ -1672,39 +1670,7 @@ Included for completeness even though not in task #3 title; the SFNs are the oth
 
 ---
 
-## 12. AFT behaviours that require explicit design decisions
-
-Mapped from `mapping.md` §9; each item resolved or flagged.
-
-### 12.1 Closed in this design
-
-| Item | Resolution |
-|---|---|
-| §9.1 Request routing | `push-main.yaml` `route` job classifies via `atmos describe affected`; tombstone markers (`metadata.deleted: true`) handle REMOVE. |
-| §9.2 `account-provisioning` import | `import-existing-account.yaml` workflow §5.6. |
-| §9.3 Service Catalog ≠ CT guardrails | Adopt option (c): retry subsequent jobs with backoff. `_atmos-apply.yaml` has `retry_attempts=3, retry_delay_seconds=60` for `account-provisioning` and the next three jobs. |
-| §9.4 Matrix concurrency limits | `_matrix-chunk.yaml` reusable + explicit chunked dispatch §8.2. |
-| §9.5 Customer extension seam | `custom-provisioning-hook.yaml` in-repo (Phase 1); cross-repo contract deferred to multi-repo split §2.2. |
-| §9.6 Status tracking | `publish-status` composite + `/aft/account/<n>/status` SSM schema §9.1 table. |
-| §9.7 Drift detection | `drift-detection.yaml` §5.5. |
-| §9.10 `terraform_token` | GHA environment secret `TERRAFORM_CLOUD_TOKEN` §10.1; rotation §10.4. |
-| §9.11 Forbidden-components enforcement | `pr.yaml` `policy` job runs `forbidden-components.rego`. |
-| review.md Blocker 3 — state backend topology + cross-account KMS | Resolved in `atmos-model.md` §9.3 (task #9). Decision: per-account primary backend; central bootstrap bucket in aft-mgmt holds every account's `tfstate-backend` state only. KMS key policy template in §9.3.2 grants `AtmosReadAllStateRole` cross-account `kms:Decrypt` for drift summary aggregation. Bootstrap order in §9.3.3; single-region, no DR for Phase 1 (§9.3.4). `bootstrap.yaml` §5.8 updated. |
-| review.md Blocker 4 — `AtmosDeploymentRole` in CT-mgmt / audit / log-archive | Resolved §3.1 + §4.6 + §5.8 (task #10). §4.6.1 is the canonical role-placement matrix covering `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole` (all in atmos-aft mgmt, from `iam-deployment-roles/central`), `AtmosDeploymentRole` + `AtmosDeploymentRole-ReadOnly` (in all five account classes, from `iam-deployment-roles/target`), and the two bootstrap-only CT-vended roles (`AWSControlTowerExecution`, `OrganizationAccountAccessRole`). §4.6.2 lists which components require `AtmosDeploymentRole` per class. Trust policy template with `sts:ExternalId` guardrail for the four CT-core placements is in §4.6. `bootstrap.yaml` steps 5 and 6 stamp the role + per-account tfstate backend into each of the four CT-core accounts sequentially via `_bootstrap-target.yaml` with `fallback_role=OrganizationAccountAccessRole`. Per-account stack YAML under `stacks/orgs/<org>/core/<account>/` declares `iam-deployment-roles/target` with the `bootstrap` identity pinned; the component body is identical to the vended-account variant. `AtmosReadAllStateRole` placement matches `atmos-model.md §9.3.2` — decrypt-only cross-account reader with `kms:ViaService` condition and a permissions-boundary denying all writes. `mapping.md §8` deployment-roles row expanded accordingly. |
-| review.md Blocker 5 — `destroy-account.yaml` async correctness | Resolved §5.7. Added `wait-for-suspended` polling job (45-min timeout on `aws organizations describe-account` returning `SUSPENDED`), `finalize` job writes `status=destroyed` only after polling succeeds, failure path writes `status=destroy-stuck` and opens a tagged issue. Added 7-day cooldown PR check on `pr.yaml` to block re-adding a just-destroyed stack's email. |
-| review.md Blocker 5 — `push-main.yaml` permissions | Resolved §5.2. Explicit `permissions: { contents: read, id-token: write, actions: write }`. Actor-change documented; `triggered_by_sha` and `triggered_by_commit_author` written to SSM so the audit trail survives the `github-actions[bot]` actor on dispatched runs. Optional PAT override via `secrets.WORKFLOW_DISPATCH_PAT` for organisations that require the human actor on child runs. |
-| review.md Blocker 6 — three-phase security ordering | Resolved §6.10 + §3.2 DAG. New reusable workflow `_apply-security-service.yaml` enforces phase-1 (mgmt) → propagate → phase-2 (audit) → phase-3 (member) with hard `needs:` edges. Provision-account job 7 split into 7a (config-rules) → 7b (guardduty) → 7c (security-hub) → 7d (inspector2); per-account runs use `skip_if_already_applied=true` to short-circuit to phase 3 only. Bootstrap runs phase-1+2 per service once at first-run (§5.8 step 5) against the CT-managed audit account. |
-| review.md Blocker 6 — `ct-provisioning` single-lane | Kept single-lane for phase 1 (matches AFT's FIFO SQS `maxReceiveCount=1`). Phase-2 widening noted as an empirical tunable in §8.3, not a code change. |
-
-### 12.2 Open for task #4 (AWS architect review)
-
-| Item | Open question |
-|---|---|
-| §9.8 CT event history | Build `ct-event-logger` component or depend on CloudTrail Lake view? Flagged for architect. |
-| §9.3 (reopened if (c) unacceptable) | If eventual-consistency retries prove flaky in real Control Tower installations, revisit options (a) polling or (b) re-entrant workflow. |
-| `ct-provisioning` global concurrency (phase 2 only) | Phase 2: validate empirically whether CT Account Factory tolerates 2-N concurrent provisioning. Single-lane is kept for phase 1. |
-
-### 12.3 Items Phase 1 explicitly does not address
+## 12. Out of scope
 
 - Multi-region vended accounts. One `(stack, region)` at a time; multi-region per account = multiple stacks.
 - Fleet destroy. `destroy-account.yaml` destroys one at a time by design.
@@ -1712,27 +1678,7 @@ Mapped from `mapping.md` §9; each item resolved or flagged.
 
 ---
 
-## 13. Implementation checklist for Phase 2
-
-Not part of this document's scope, listed here so the handoff to Phase 2 is explicit.
-
-- [ ] `.github/workflows/*.yaml` files listed in §5.
-- [ ] `.github/workflows/reusable/_*.yaml` files listed in §6.
-- [ ] `.github/actions/*/action.yml` files listed in §7.
-- [ ] `.github/policies/forbidden-components.rego`.
-- [ ] `.github/policies/ct-coexistence.rego`.
-- [ ] `scripts/classify-affected.sh`.
-- [ ] `scripts/import-existing-accounts.sh`.
-- [ ] `scripts/rotate-bootstrap-key.sh`.
-- [ ] `scripts/chunk-matrix.sh`.
-- [ ] `CODEOWNERS` rules for `.github/workflows/reusable/` and `.github/policies/`.
-- [ ] Environment configuration (secrets, vars, reviewers) for `bootstrap`, `aft-mgmt`, `prod`, `non-prod`, `destroy`, `pr`.
-- [ ] Branch protection rules on `main`.
-- [ ] Integration test: full bootstrap → provision → customize → destroy cycle against a sandbox org.
-
----
-
-## 14. Reference: files cited
+## 13. Reference: files cited
 
 From this repo:
 - `docs/architecture/aft-analysis.md` §1-§7

@@ -100,8 +100,3 @@ All 34 directories now `terraform init -backend=false && terraform validate` cle
 | 33 | `tfstate-backend-central` | cloudposse/tfstate-backend 1.9.0 | OK | OK | Same shape as row 32. |
 | 34 | `vpc-flow-logs-bucket` | cloudposse/vpc-flow-logs-s3-bucket 1.3.1 | OK | OK | Args match v1.3.1. |
 
----
-
-## §2 Change log
-
-- **2026-04-20** — Task #36. Full sweep. Found 1 hallucinated version pin (`cloudtrail-s3-bucket` 1.2.0) and 16 components failing `terraform validate`. Fixes landed component-by-component (see §1). All other vendor.yaml pins are at upstream `releases/latest` as of audit date.
