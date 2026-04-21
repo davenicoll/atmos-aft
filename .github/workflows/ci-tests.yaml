@@ -142,9 +142,11 @@ jobs:
           fi
           # Workflows whose matrix is built at runtime via fromJSON() on a
           # prior job's output can't be statically evaluated by act — it
-          # tries to parse the literal ${{ ... }} expression as a JSON array
+          # tries to parse the literal expression syntax as a JSON array
           # and fails. Skip those; they are still covered by atmos validate,
-          # OPA policies, and real runs in deployment forks.
+          # OPA policies, and real runs in deployment forks. (The literal
+          # sequence is avoided here because GitHub evaluates ${} inside
+          # run: blocks regardless of shell comment markers.)
           if grep -qE '\$\{\{[[:space:]]*fromJSON' "$WF"; then
             echo "::notice::$name uses a dynamic fromJSON matrix; skipping act smoke (act can't statically evaluate runtime matrices)"
             exit 0
