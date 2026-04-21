@@ -1,9 +1,6 @@
 locals {
   enabled = module.this.enabled
 
-  # CT Account Factory product name is fixed by Control Tower.
-  ct_product_name = "AWS Control Tower Account Factory"
-
   # Provisioning parameters. The CT Account Factory Service Catalog product
   # accepts the parameters below; every new vended account supplies its own.
   # See: https://docs.aws.amazon.com/controltower/latest/userguide/account-factory.html

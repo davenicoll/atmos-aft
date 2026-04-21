@@ -53,7 +53,7 @@ jobs:
               failures+=("$dir")
             fi
             echo "::endgroup::"
-          done < <(find components/terraform -type f -name '*.tf' -exec dirname {} \; | sort -u)
+          done < <(find components/terraform -type f -name '*.tf' -not -path '*/.terraform/*' -exec dirname {} \; | sort -u)
           if [[ ${#failures[@]} -gt 0 ]]; then
             printf '::error::terraform validate failed in:\n%s\n' "${failures[@]}"
             exit 1
@@ -66,7 +66,7 @@ jobs:
             echo "::group::$dir"
             (cd "$dir" && tflint --minimum-failure-severity=warning) || exit 1
             echo "::endgroup::"
-          done < <(find components/terraform -type f -name '*.tf' -exec dirname {} \; | sort -u)
+          done < <(find components/terraform -type f -name '*.tf' -not -path '*/.terraform/*' -exec dirname {} \; | sort -u)
 
   opa:
     name: opa (policy unit tests + conftest)
