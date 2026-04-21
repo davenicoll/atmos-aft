@@ -1,8 +1,3 @@
-# Stack name: core-gbl-log-archive
-# Hosts: AtmosDeploymentRole (log-archive class). Centralised logging buckets
-# (centralized-logging-bucket, cloudtrail-additional) wire in here when the
-# corresponding catalog entries land — stub left minimal so a real deploy can
-# slot them in without restructuring the stack.
 import:
   - orgs/example-accounts/_defaults
   - mixins/tenant/core

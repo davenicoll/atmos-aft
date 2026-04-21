@@ -1,15 +1,8 @@
-# Guards against Atmos components stepping on state Control Tower already owns.
-#
-# Historical note: this file previously required aws-config components to set
-# create_recorder=false / create_iam_role=false on the grounds that the
-# top-level cloudposse/terraform-aws-config module creates a recorder that
-# collides with CT's recorder. Since #36 we wrap only the recorder-free
-# submodules (cis-1-2-rules, conformance-pack), which don't expose those
-# vars at all — so the guard became a contradiction (denying components for
-# not setting vars they can't set). That clause was removed; the structural
-# guard "don't wrap the top-level module" now lives in
-# forbidden_components.rego (denies cloudposse/config/aws sources without a
-# //modules/ submodule anchor).
+# Guards against Atmos components stepping on state Control Tower already
+# owns. Currently: GuardDuty organization-level components must not re-enable
+# org-level GuardDuty on stacks where CT already runs the org detector.
+# (The structural guard against wrapping the top-level cloudposse/config/aws
+# module lives in forbidden_components.rego.)
 package atmos.ct_flags
 
 import rego.v1

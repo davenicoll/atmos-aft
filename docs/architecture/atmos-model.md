@@ -332,7 +332,7 @@ Atmos regenerates `backend.tf.json` on each run; **do not commit it**.
 
 Resolves `review.md` Blocker 3. `§9.2` above is the Atmos-mechanics primer; this subsection is the concrete topology the factory ships. Terms: *account state* = state for every component applied inside a vended/managed account. *Bootstrap state* = the one-per-account `tfstate-backend` component's own state.
 
-**Decision.** Per-account primary backend for everything except `tfstate-backend` itself; **central bootstrap backend** in aft-mgmt for `tfstate-backend`'s state. S3-only, native S3 locking (`use_lockfile: true`, no DDB). Single-region per account in Phase 1, no cross-region replication.
+**Decision.** Per-account primary backend for everything except `tfstate-backend` itself; **central bootstrap backend** in aft-mgmt for `tfstate-backend`'s state. S3-only, native S3 locking (`use_lockfile: true`, no DDB). Single-region per account; no cross-region replication.
 
 Rationale. Per-account buckets align with the "self-contained account" philosophy adopted elsewhere in the design (per-account IAM, per-account KMS, per-account budgets) and mean a blast radius contained to one account for any state-bucket incident. A fleet-wide central backend would concentrate the risk, and drift-detection already works fine against per-account buckets because each `(component, stack)` plan runs under the target's own assumed role. The central bootstrap bucket exists only to break the chicken-and-egg for `tfstate-backend` itself — it never holds anything else.
 
@@ -468,21 +468,21 @@ The bootstrap-bucket CMK (`alias/atmos-tfstate-bootstrap` in aft-mgmt) uses a si
 
 #### 9.3.3 Bootstrap order
 
-The only manual-state moment in the lifecycle. Encoded as `bootstrap.yaml` (`gha-design.md` §5.8); the steps below are the concrete ordering Phase 2 must implement.
+The only manual-state moment in the lifecycle. Encoded as `bootstrap.yaml` (`gha-design.md` §5.8); the steps below are the concrete ordering the bootstrap workflow implements.
 
 1. **Operator creates the bootstrap bucket + CMK locally.** From a workstation with short-lived aft-mgmt admin creds, `cd components/terraform/tfstate-backend-central && terraform init && terraform apply -var 'bootstrap=true'`. `-var 'bootstrap=true'` tells the module to use **local** state for this first pass. The apply creates `atmos-tfstate-bootstrap-<aft-mgmt-id>-<region>`, the CMK, the bucket policy, and the access-logs target.
 
 2. **Operator migrates the bootstrap bucket's own state into itself.** `terraform init -migrate-state -backend-config='bucket=atmos-tfstate-bootstrap-<aft-mgmt-id>-<region>' -backend-config='key=bootstrap/self/terraform.tfstate' -backend-config='region=<region>' -backend-config='kms_key_id=alias/atmos-tfstate-bootstrap'`. Terraform prompts to copy state; confirm. Delete the local `terraform.tfstate` afterward. This is the only `migrate-state` in the system.
 
 3. **GHA `bootstrap.yaml` runs** under access-key identity (`AtmosBootstrapUser`, §`gha-design.md` 4.2) to create the rest of the aft-mgmt plane:
-   - Apply `github-oidc-provider` — state goes directly into the central bootstrap bucket under `bootstrap/<aft-mgmt-id>/github-oidc-provider/terraform.tfstate` (we reuse the bootstrap bucket here to avoid a second manual step; after the aft-mgmt `tfstate-backend` is up, its state migrates to aft-mgmt's primary bucket as a scheduled maintenance task — not Phase 1).
+   - Apply `github-oidc-provider` — state goes directly into the central bootstrap bucket under `bootstrap/<aft-mgmt-id>/github-oidc-provider/terraform.tfstate`. Reusing the bootstrap bucket here avoids a second manual step; migrating this state to aft-mgmt's primary bucket is a later housekeeping task.
    - Apply `iam-deployment-roles/central` — creates `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`. State as above.
    - Apply aft-mgmt's own `tfstate-backend` component — creates `atmos-tfstate-<aft-mgmt-id>-<region>` (primary bucket + CMK). State in the central bootstrap bucket at `bootstrap/<aft-mgmt-id>/tfstate-backend/terraform.tfstate`.
 
 4. **For every subsequent account vended by `provision-account.yaml`** (`gha-design.md` §5.3), the state-backend step runs as job 3 under `AtmosCentralDeploymentRole`:
    - Input: the new account ID from the `account-provisioning` step.
    - Backend for this apply: the central bootstrap bucket at `bootstrap/<account-id>/tfstate-backend/terraform.tfstate`.
-   - Module assumes into the target via `providers = { aws = aws.target }` using the bootstrap identity path from `iam-deployment-roles/target` (task #7 resolves which identity is used for the first touch into a new account).
+   - Module assumes into the target via `providers = { aws = aws.target }` using the bootstrap identity path from `iam-deployment-roles/target`.
    - Apply creates `atmos-tfstate-<account-id>-<region>`, its CMK with the policy in §9.3.2, bucket policy, KMS alias.
    - All subsequent jobs in `provision-account.yaml` (iam-deployment-roles, aws-account-settings, baseline security block, customizations) use the per-account bucket.
 
@@ -490,14 +490,14 @@ The only manual-state moment in the lifecycle. Encoded as `bootstrap.yaml` (`gha
 
 #### 9.3.4 DR / dual-region — deferred
 
-Phase 1 is single-region per account. AFT's dual-region CMK + cross-region S3 replication (`aft-analysis.md` §7.1) is not implemented. Reasons: (a) S3 is already 11-nines durable within a region; state loss risk is operator error, not infrastructure failure; (b) replicated state across regions requires a conflict-resolution story that AFT fudges by write-to-primary-only, which is the same posture single-region gives us; (c) adding cross-region replication to the per-account backend adds one CMK + one bucket + one replication role per account, multiplying blast radius for bootstrap errors.
+atmos-aft is single-region per account. AFT's dual-region CMK + cross-region S3 replication (`aft-analysis.md` §7.1) is not implemented. Reasons: (a) S3 is already 11-nines durable within a region; state loss risk is operator error, not infrastructure failure; (b) replicated state across regions requires a conflict-resolution story that AFT fudges by write-to-primary-only, which is the same posture single-region gives us; (c) adding cross-region replication to the per-account backend adds one CMK + one bucket + one replication role per account, multiplying blast radius for bootstrap errors.
 
 If DR becomes a requirement, add an optional `secondary_region` variable to the `tfstate-backend` component that stamps a second bucket + CMK + replication-role in the target account. The KMS policy template in §9.3.2 applies unchanged to the secondary CMK (the replication role is already implicit via `aws_iam_role_policy_attachment "replication"`).
 
 #### 9.3.5 Open knobs tracked elsewhere
 
-- `tfstate-backend`'s aft-mgmt state is kept in the central bootstrap bucket as a Phase 1 simplification. Moving it to aft-mgmt's primary bucket (so the bootstrap bucket holds nothing but other accounts' bootstrap keys) is a Phase 2 housekeeping task — not on the critical path.
-- The drift-detection workflow (`gha-design.md` §5.5) should verify that per-account plans continue to run under `AtmosPlanOnlyRole` (assumed into each target) and that `AtmosReadAllStateRole` is only invoked by the summary-aggregation step. Concrete IAM for `AtmosPlanOnlyRole` vs `AtmosReadAllStateRole` is in `iam-deployment-roles/central` — task #7 / #10 own the exact policy shapes.
+- `tfstate-backend`'s aft-mgmt state is kept in the central bootstrap bucket as a simplification. Moving it to aft-mgmt's primary bucket (so the bootstrap bucket holds nothing but other accounts' bootstrap keys) is a housekeeping task — not on the critical path.
+- The drift-detection workflow (`gha-design.md` §5.5) should verify that per-account plans continue to run under `AtmosPlanOnlyRole` (assumed into each target) and that `AtmosReadAllStateRole` is only invoked by the summary-aggregation step. Concrete IAM for `AtmosPlanOnlyRole` vs `AtmosReadAllStateRole` is in `iam-deployment-roles/central`.
 
 ---
 
@@ -561,7 +561,7 @@ atmos-aft/
 
 Name template: `{{ .vars.tenant }}-{{ .vars.environment }}-{{ .vars.stage }}` (or with `namespace` prefix if we support more than one org). Stack = "this account, this region."
 
-New account flow (Phase 1, design only — **no implementation yet**):
+New account flow:
 1. Operator opens a PR adding `stacks/orgs/<org>/<tenant>/<stage>/<region>.yaml` referencing the tenant/stage mixins and the catalog entries for baseline components.
 2. `atmos validate stacks` and `atmos describe affected --format=matrix` run on the PR.
 3. On merge, a GitHub Actions workflow runs `atmos workflow provision-account -s <stack>` which sequences: `account-provisioning` → `tfstate-backend` → `iam-roles` → baseline components → customization components. The first step invokes the Control Tower Account Factory via Service Catalog (see §12); subsequent steps assume into the new account using the auth identity chain.

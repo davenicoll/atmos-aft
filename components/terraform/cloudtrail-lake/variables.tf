@@ -6,7 +6,7 @@ variable "region" {
 variable "retention_days" {
   type        = number
   default     = 2557
-  description = "Retention in days. Default 2557 (≈7 years) per task #13 spec."
+  description = "Retention in days. Default 2557 (≈7 years)."
 
   validation {
     condition     = var.retention_days >= 7 && var.retention_days <= 3653

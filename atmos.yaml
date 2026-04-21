@@ -105,7 +105,7 @@ stores:
 #      right role (AtmosDeploymentRole for deploy, AtmosDeploymentRole-ReadOnly
 #      for PR plan / drift, OAAR or AWSControlTowerExecution for bootstrap).
 #
-# Why this split (see #26 for the full analysis): Atmos 1.203 rejects the
+# Why this split: Atmos 1.203 rejects the
 # aws-oidc provider kind, so the native `auth:` providers/identities block
 # isn't an option. Instead of re-implementing Atmos's chain renderer, we let
 # Terraform handle the target hop natively via provider assume_role and let

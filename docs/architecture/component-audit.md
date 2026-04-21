@@ -96,8 +96,8 @@ All 34 directories now `terraform init -backend=false && terraform validate` cle
 | 29 | `inspector2` | Vanilla | OK | OK | Raw `aws_inspector2_enabler` + `aws_inspector2_organization_configuration`. |
 | 30 | `ipam` | Vanilla | OK | OK | Raw `aws_vpc_ipam` + `aws_vpc_ipam_pool`. |
 | 31 | `security-hub` | cloudposse/security-hub 0.12.2 | FAIL — input drift | **Fixed** | Removed bogus `create_organization_admin_account = false` arg from module call (not exposed). Sibling `aws_securityhub_organization_admin_account` resource still does delegated-admin work. |
-| 32 | `tfstate-backend` | cloudposse/tfstate-backend 1.9.0 | OK (already #32-fixed) | OK | Args match v1.9.0 — `s3_state_lock_enabled`, `kms_master_key_id`. CMK id resolved via `aws_kms_alias` data source (module doesn't output it). |
-| 33 | `tfstate-backend-central` | cloudposse/tfstate-backend 1.9.0 | OK (already #32-fixed) | OK | Same as #32. `context.tf` was added during #32. |
+| 32 | `tfstate-backend` | cloudposse/tfstate-backend 1.9.0 | OK | OK | Args match v1.9.0 — `s3_state_lock_enabled`, `kms_master_key_id`. CMK id resolved via `aws_kms_alias` data source (module doesn't output it). |
+| 33 | `tfstate-backend-central` | cloudposse/tfstate-backend 1.9.0 | OK | OK | Same shape as row 32. |
 | 34 | `vpc-flow-logs-bucket` | cloudposse/vpc-flow-logs-s3-bucket 1.3.1 | OK | OK | Args match v1.3.1. |
 
 ---

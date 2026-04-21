@@ -1,6 +1,3 @@
-# Stack name: core-gbl-audit
-# Hosts: cloudtrail-lake, guardduty phase 2, security-hub aggregator,
-# AtmosDeploymentRole (audit class).
 import:
   - orgs/example-accounts/_defaults
   - mixins/tenant/core

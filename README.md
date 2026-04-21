@@ -140,7 +140,7 @@ atmos-aft must run in the CT home region. Multi-region workloads are supported i
 
 ## 4. Quickstart
 
-Workflow and stack references below are reconciled against the shipped `.github/workflows/` (#21) and `stacks/` catalog + orgs tree (#17). See `docs/architecture/gha-design.md` §4 and `atmos-model.md` §7 for design detail.
+See `docs/architecture/gha-design.md` §4 and `atmos-model.md` §7 for design detail.
 
 ### 4.1 Clone and bootstrap
 
@@ -297,8 +297,8 @@ Intentional cuts; these have no analogue in atmos-aft:
 | `aft_codebuild_compute_type`, `global_codebuild_timeout` | GHA runner tier is controlled in `.github/workflows/*.yml`. |
 | `concurrent_account_factory_actions` | `AFT_PROVISION_PARALLELISM` repo variable; per-concurrency-group. |
 | `terraform_oidc_*` | Replaced by GitHub OIDC (first-class; `terraform_oidc_integration` becomes trivially `true` when using TFC). |
-| `backup_recovery_point_retention` | Not applicable — no AFT-owned DynamoDB tables (DDB dropped per design decision #8; replaced by Git + SSM as the request + metadata plane). |
-| `tf_backend_secondary_region` | Not applicable — atmos-aft is single-region in Phase 1 per `docs/architecture/atmos-model.md` §9.3.4. State replication is a per-account bucket opt-in, not a global toggle. |
+| `backup_recovery_point_retention` | Not applicable — no AFT-owned DynamoDB tables; Git + SSM are the request + metadata plane. |
+| `tf_backend_secondary_region` | Not applicable — atmos-aft is single-region; see `docs/architecture/atmos-model.md` §9.3.4. State replication is a per-account bucket opt-in, not a global toggle. |
 | `cloudwatch_log_group_enable_cmk_encryption`, `sns_topic_enable_cmk_encryption` | Uniformly CMK-encrypted. No AWS-managed-key fallback. |
 
 Per-input parity is audited in [`docs/architecture/readme-audit.md`](docs/architecture/readme-audit.md).

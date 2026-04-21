@@ -1,4 +1,3 @@
-# Stack name: plat-use1-prod
 import:
   - orgs/example-accounts/_defaults
   - mixins/tenant/plat

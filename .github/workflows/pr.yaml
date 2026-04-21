@@ -95,7 +95,7 @@ jobs:
             echo "::notice::no new stack files; cooldown check n/a"
             exit 0
           fi
-          echo "::notice::new stack files detected; runtime cooldown check is deferred to scripts/cooldown-check.sh (task #17 follow-up)"
+          echo "::notice::new stack files detected; runtime cooldown check is deferred to scripts/cooldown-check.sh"
 
   affected:
     name: affected (describe)

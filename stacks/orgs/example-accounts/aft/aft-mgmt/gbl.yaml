@@ -1,7 +1,3 @@
-# Stack name: aft-gbl-mgmt
-# Hosts: github-oidc-provider, AtmosCentralDeploymentRole (via iam-deployment-roles/central),
-# AtmosDeploymentRole (aft-mgmt class), controltower-event-bridge, central bootstrap bucket,
-# primary per-account tfstate-backend. Everything that makes the factory function.
 import:
   - orgs/example-accounts/_defaults
   - mixins/tenant/aft

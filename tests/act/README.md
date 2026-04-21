@@ -23,9 +23,9 @@ act pull_request \
 ## Event fixtures
 
 Event JSON files under `tests/act/events/` are consumed by the matrix in
-`.github/workflows/ci-tests.yaml`. They are added alongside each entry
-workflow as it lands (task #21). A fixture is a minimal GitHub webhook
-payload stub — see the [webhook docs](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
+`.github/workflows/ci-tests.yaml`. Each entry workflow has a corresponding
+fixture — a minimal GitHub webhook payload stub. See the
+[webhook docs](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
 for schemas.
 
 ## What `act` does (and does not) cover
@@ -34,7 +34,7 @@ for schemas.
   composite-action wiring, env-var propagation.
 - **Not covered.** OIDC federation (no AWS STS locally), `workflow_run`
   triggers across workflows, GHA concurrency groups, environment protections.
-  Those live in task #25 review + production observation.
+  Those are only exercisable in real CI runs.
 
 Use `act` as a fast syntax sanity check, not a substitute for running the
 workflow in CI.

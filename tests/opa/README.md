@@ -1,8 +1,7 @@
 # tests/opa
 
-Rego unit tests for the policies under `.github/policies/`. Policies
-themselves are authored in task #18; this directory holds the `_test.rego`
-files that exercise each rule with fixture inputs.
+Rego unit tests for the policies under `.github/policies/`. This directory
+holds the `_test.rego` files that exercise each rule with fixture inputs.
 
 ## Running
 

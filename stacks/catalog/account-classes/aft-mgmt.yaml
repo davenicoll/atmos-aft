@@ -2,11 +2,6 @@
 # bootstrap bucket, account-provisioning, controltower-event-bridge.
 # Bootstrap role is OAAR in dual-account topology; in single-account topology
 # this merges with ct-mgmt.yaml.
-#
-# Single-account topology (separate_aft_mgmt_account=false) is supported by
-# bootstrap.yaml and the IAM catalog, but no example stack ships with Phase 2
-# — the dual-account topology is the reference shape. Tracking a worked
-# example for 2.1 under task #33.
 vars:
   account_class: aft-mgmt
   bootstrap_role: OrganizationAccountAccessRole

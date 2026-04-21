@@ -16,7 +16,6 @@ resource "aws_cloudtrail_event_data_store" "this" {
 
   name = module.this.id
 
-  # 7y retention (2557 days, per task #13 spec).
   retention_period = var.retention_days
 
   # Single-region store unless multi_region_enabled is flipped on.

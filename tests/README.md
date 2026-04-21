@@ -33,7 +33,7 @@ tests/
 ├── act/
 │   ├── .actrc                       # act config (images, arch pins)
 │   ├── README.md
-│   └── events/                      # per-workflow event fixtures (added with task #21)
+│   └── events/                      # per-workflow event fixtures
 ├── opa/
 │   ├── fixtures/                    # JSON fixtures for policy tests
 │   ├── forbidden_components_test.rego

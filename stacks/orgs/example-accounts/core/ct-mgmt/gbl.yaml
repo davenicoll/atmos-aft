@@ -1,5 +1,3 @@
-# Stack name: core-gbl-mgmt
-# Hosts: aws-scp (org-wide), guardduty phase 1, AtmosDeploymentRole (ct-mgmt class).
 import:
   - orgs/example-accounts/_defaults
   - mixins/tenant/core

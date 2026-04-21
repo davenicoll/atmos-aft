@@ -1,5 +1,5 @@
-# Stack-attached SCP. Target resolves to the OU or account via Organizations
-# data sources in the component. Leaf stacks supply `statements` + `target_id`.
+# Stack-attached SCP. Leaf stacks supply `statements` + `target_id`; target
+# resolves to the OU or account via Organizations data sources in the component.
 components:
   terraform:
     aws-scp:

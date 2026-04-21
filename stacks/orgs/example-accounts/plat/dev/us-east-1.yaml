@@ -1,7 +1,5 @@
-# Stack name: plat-use1-dev
-# Vended account — provisioned by account-provisioning, baseline applied via
-# vended account class. guardduty-member-settings runs phase 3 of the 3-phase
-# rollout. GHA matrix handles cross-stack sequencing against audit's phase-2.
+# guardduty-member-settings runs phase 3 of the GuardDuty rollout; the GHA
+# matrix sequences this stack's apply against audit's phase-2 deploy.
 import:
   - orgs/example-accounts/_defaults
   - mixins/tenant/plat
