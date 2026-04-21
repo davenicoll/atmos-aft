@@ -81,7 +81,6 @@ jobs:
             echo "log_archive_stack=$log_archive_stack"
           } >> "$GITHUB_OUTPUT"
 
-          # Emit IDs for the Organizations precheck below.
           audit_id=$(echo "$stacks_json" | jq -r --arg s "$audit_stack" \
             '.[$s].settings.audit_account_id // .[$s].vars.account_id // empty')
           log_archive_id=$(echo "$stacks_json" | jq -r --arg s "$log_archive_stack" \

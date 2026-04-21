@@ -67,7 +67,6 @@ jobs:
             echo "audit_stack=$audit_stack"
           } >> "$GITHUB_OUTPUT"
 
-  # 1. account-provisioning — Service Catalog provisioned product
   account-provisioning:
     name: 1. account-provisioning
     needs: resolve-env
@@ -82,7 +81,6 @@ jobs:
       retry_attempts: 1
     secrets: inherit
 
-  # 2. publish-account-id — store-outputs hook writes SSM
   publish-account-id:
     name: 2. publish-account-id
     needs: account-provisioning
@@ -118,7 +116,6 @@ jobs:
           stack: ${{ inputs.stack }}
           status: provisioning
 
-  # 3. tfstate-backend-target — bootstrap identity
   tfstate-backend-target:
     name: 3. tfstate-backend-target
     needs: publish-account-id
@@ -128,7 +125,6 @@ jobs:
       component: tfstate-backend
     secrets: inherit
 
-  # 4. iam-deployment-roles — bootstrap identity
   iam-deployment-roles:
     name: 4. iam-deployment-roles/target
     needs: tfstate-backend-target
@@ -138,7 +134,6 @@ jobs:
       component: iam-deployment-roles/target
     secrets: inherit
 
-  # 5. account-baseline — default identity (AtmosDeploymentRole now exists)
   account-baseline:
     name: 5. account-baseline
     needs: [resolve-env, iam-deployment-roles]
@@ -154,7 +149,6 @@ jobs:
       environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
-  # 6. feature-options
   feature-options:
     name: 6. feature-options
     needs: [resolve-env, account-baseline]
@@ -165,7 +159,6 @@ jobs:
       environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
-  # 7a. config-rules
   baseline-config-rules:
     name: 7a. baseline-security/config-rules
     needs: [resolve-env, account-baseline]
@@ -177,7 +170,7 @@ jobs:
       environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
-  # 7b. guardduty — phase 3 fan-out only (skip_if_already_applied=true)
+  # phase 3 fan-out only
   baseline-guardduty:
     name: 7b. baseline-security/guardduty
     needs: [resolve-env, baseline-config-rules]
@@ -190,7 +183,6 @@ jobs:
       skip_if_already_applied: true
     secrets: inherit
 
-  # 7c. security-hub
   baseline-security-hub:
     name: 7c. baseline-security/security-hub
     needs: [resolve-env, baseline-guardduty]
@@ -203,7 +195,6 @@ jobs:
       skip_if_already_applied: true
     secrets: inherit
 
-  # 7d. inspector2
   baseline-inspector2:
     name: 7d. baseline-security/inspector2
     needs: [resolve-env, baseline-security-hub]
@@ -216,7 +207,6 @@ jobs:
       skip_if_already_applied: true
     secrets: inherit
 
-  # 8. custom-provisioning
   custom-provisioning:
     name: 8. custom-provisioning-hook
     needs: [publish-account-id, baseline-inspector2]
@@ -226,7 +216,6 @@ jobs:
       account_id: ${{ needs.publish-account-id.outputs.account_id }}
     secrets: inherit
 
-  # 9. customize-global
   customize-global:
     name: 9. customize-global
     needs: [resolve-env, custom-provisioning]
@@ -237,7 +226,6 @@ jobs:
       environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
-  # 10. customize-account
   customize-account:
     name: 10. customize-account
     needs: [resolve-env, customize-global]
@@ -248,7 +236,6 @@ jobs:
       environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
-  # 11. publish-status = customized
   publish-status:
     name: 11. publish-status
     needs: [publish-account-id, customize-account]

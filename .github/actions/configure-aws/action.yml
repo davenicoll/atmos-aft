@@ -20,9 +20,8 @@ inputs:
     description: >-
       ARN of the target-account role Terraform should assume after the central
       hop. When non-empty, this action exports TF_VAR_target_role_arn so every
-      component's provider `dynamic "assume_role"` block resolves to this role
-      (see #26 and components/terraform/*/providers.tf). Pass empty for
-      components that stay in the central account (AFT-mgmt-local).
+      component's provider `dynamic "assume_role"` block resolves to this role.
+      Pass empty for components that stay in the central account (AFT-mgmt-local).
     required: false
     default: ""
   region:

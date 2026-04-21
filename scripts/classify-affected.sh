@@ -1,19 +1,13 @@
 #!/usr/bin/env bash
-# Partition `atmos describe affected` JSON into the four push-main buckets.
-# Input on stdin: JSON array from `atmos describe affected --format json`.
-# Output on stdout: key=value lines suitable for appending to $GITHUB_OUTPUT.
-#
-#   new_stacks=<json-array>        stacks whose account-provisioning is newly added
-#   destroyed_stacks=<json-array>  stacks marked metadata.deleted=true
-#   has_customizations=<bool>      any affected component under customizations/*
-#
-# Consumed by .github/workflows/push-main.yaml route job.
+# Partition `atmos describe affected` JSON into push-main routing buckets.
+# Usage: classify-affected.sh [JSON] ; reads stdin if no arg. Emits
+# key=value lines (new_stacks, destroyed_stacks, has_customizations) for
+# $GITHUB_OUTPUT.
 
 set -euo pipefail
 
 affected_json="${1:-$(cat)}"
 
-# Newly added stacks: account-provisioning component added in this diff.
 new_stacks=$(jq -c '
   [ .[]
     | select(.component == "account-provisioning")
@@ -22,7 +16,6 @@ new_stacks=$(jq -c '
   ] | unique
 ' <<<"$affected_json")
 
-# Tombstoned stacks: metadata.deleted flipped true.
 destroyed_stacks=$(jq -c '
   [ .[]
     | select(.metadata.deleted == true)
@@ -30,7 +23,6 @@ destroyed_stacks=$(jq -c '
   ] | unique
 ' <<<"$affected_json")
 
-# Any customizations/* instance affected?
 has_customizations=$(jq -r '
   [ .[] | select(.component | startswith("customizations/")) ] | length > 0
 ' <<<"$affected_json")

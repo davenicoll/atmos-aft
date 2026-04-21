@@ -117,7 +117,7 @@ jobs:
           WF: .github/workflows/${{ matrix.entry }}
         run: |
           if [[ ! -f "$WF" ]]; then
-            echo "::notice::entry workflow $WF not yet landed (task #21); skipping"
+            echo "::notice::entry workflow $WF not yet landed; skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
