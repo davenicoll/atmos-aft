@@ -1,8 +1,15 @@
 {
-  "inputs": {},
+  "schedule": "0 3 * * 1",
   "ref": "refs/heads/main",
+  "sha": "1111111111111111111111111111111111111111",
+  "workflow": "vendor-refresh",
   "repository": {
     "full_name": "davenicoll/atmos-aft",
-    "default_branch": "main"
+    "default_branch": "main",
+    "name": "atmos-aft",
+    "owner": {
+      "login": "davenicoll",
+      "type": "User"
+    }
   }
 }

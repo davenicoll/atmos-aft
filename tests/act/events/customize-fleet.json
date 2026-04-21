@@ -4,8 +4,19 @@
     "dry_run": "true"
   },
   "ref": "refs/heads/main",
+  "sha": "1111111111111111111111111111111111111111",
+  "workflow": "customize-fleet",
+  "sender": {
+    "login": "act-fixture",
+    "type": "User"
+  },
   "repository": {
     "full_name": "davenicoll/atmos-aft",
-    "default_branch": "main"
+    "default_branch": "main",
+    "name": "atmos-aft",
+    "owner": {
+      "login": "davenicoll",
+      "type": "User"
+    }
   }
 }

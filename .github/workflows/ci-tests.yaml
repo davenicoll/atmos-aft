@@ -134,15 +134,17 @@ jobs:
           FIXTURE_DIR: tests/act/events
         run: |
           set -euo pipefail
-          fixture=""
           name="${WF##*/}"
           candidate="${FIXTURE_DIR}/${name%.yaml}.json"
-          if [[ -f "$candidate" ]]; then
-            fixture="-e $candidate"
+          if [[ ! -f "$candidate" ]]; then
+            echo "::error::missing act event fixture for $name (expected at $candidate)"
+            exit 1
           fi
           # --list proves the workflow parses; --dryrun proves step graph resolves.
-          act --list -W "$WF" $fixture
-          act --dryrun -W "$WF" $fixture
+          # -P pins the runner image so act doesn't prompt interactively on first run.
+          PLATFORM="-P ubuntu-latest=catthehacker/ubuntu:act-latest"
+          act --list -W "$WF" -e "$candidate" $PLATFORM
+          act --dryrun -W "$WF" -e "$candidate" $PLATFORM
 
   terratest:
     name: terratest (optional)

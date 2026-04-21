@@ -2,16 +2,59 @@
   "ref": "refs/heads/main",
   "before": "0000000000000000000000000000000000000000",
   "after": "1111111111111111111111111111111111111111",
+  "created": false,
+  "deleted": false,
+  "forced": false,
+  "compare": "https://github.com/davenicoll/atmos-aft/compare/0000000000000000000000000000000000000000...1111111111111111111111111111111111111111",
+  "commits": [
+    {
+      "id": "1111111111111111111111111111111111111111",
+      "message": "feat(stack): add plat-use1-dev account request",
+      "author": {
+        "name": "act-fixture",
+        "email": "act@example.com",
+        "username": "act-fixture"
+      },
+      "added": [
+        "stacks/orgs/example/platform/plat-use1-dev/us-east-1.yaml"
+      ],
+      "modified": [
+        "components/terraform/account-baseline/main.tf"
+      ],
+      "removed": []
+    }
+  ],
   "head_commit": {
     "id": "1111111111111111111111111111111111111111",
-    "message": "test: dispatcher fixture",
+    "message": "feat(stack): add plat-use1-dev account request",
     "author": {
       "name": "act-fixture",
-      "email": "act@example.com"
-    }
+      "email": "act@example.com",
+      "username": "act-fixture"
+    },
+    "added": [
+      "stacks/orgs/example/platform/plat-use1-dev/us-east-1.yaml"
+    ],
+    "modified": [
+      "components/terraform/account-baseline/main.tf"
+    ],
+    "removed": []
+  },
+  "pusher": {
+    "name": "act-fixture",
+    "email": "act@example.com"
+  },
+  "sender": {
+    "login": "act-fixture",
+    "type": "User"
   },
   "repository": {
     "full_name": "davenicoll/atmos-aft",
-    "default_branch": "main"
+    "default_branch": "main",
+    "name": "atmos-aft",
+    "owner": {
+      "login": "davenicoll",
+      "type": "User"
+    }
   }
 }
