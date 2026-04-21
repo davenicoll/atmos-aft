@@ -140,6 +140,15 @@ jobs:
             echo "::error::missing act event fixture for $name (expected at $candidate)"
             exit 1
           fi
+          # Workflows whose matrix is built at runtime via fromJSON() on a
+          # prior job's output can't be statically evaluated by act — it
+          # tries to parse the literal ${{ ... }} expression as a JSON array
+          # and fails. Skip those; they are still covered by atmos validate,
+          # OPA policies, and real runs in deployment forks.
+          if grep -qE '\$\{\{[[:space:]]*fromJSON' "$WF"; then
+            echo "::notice::$name uses a dynamic fromJSON matrix; skipping act smoke (act can't statically evaluate runtime matrices)"
+            exit 0
+          fi
           # act defaults to the `push` event when none is specified, so jobs
           # triggered only by workflow_dispatch/schedule/etc. would match zero
           # jobs. Map each entry workflow to its actual trigger.
