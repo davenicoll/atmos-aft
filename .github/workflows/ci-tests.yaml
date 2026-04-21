@@ -140,11 +140,22 @@ jobs:
             echo "::error::missing act event fixture for $name (expected at $candidate)"
             exit 1
           fi
+          # act defaults to the `push` event when none is specified, so jobs
+          # triggered only by workflow_dispatch/schedule/etc. would match zero
+          # jobs. Map each entry workflow to its actual trigger.
+          case "$name" in
+            pr.yaml) event=pull_request ;;
+            push-main.yaml) event=push ;;
+            notify.yaml) event=workflow_run ;;
+            ct-lifecycle-event.yaml) event=repository_dispatch ;;
+            drift-detection.yaml|vendor-refresh.yaml) event=schedule ;;
+            *) event=workflow_dispatch ;;
+          esac
           # --list proves the workflow parses; --dryrun proves step graph resolves.
           # -P pins the runner image so act doesn't prompt interactively on first run.
           PLATFORM="-P ubuntu-latest=catthehacker/ubuntu:act-latest"
-          act --list -W "$WF" -e "$candidate" $PLATFORM
-          act --dryrun -W "$WF" -e "$candidate" $PLATFORM
+          act "$event" --list -W "$WF" -e "$candidate" $PLATFORM
+          act "$event" --dryrun -W "$WF" -e "$candidate" $PLATFORM
 
   terratest:
     name: terratest (optional)
