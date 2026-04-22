@@ -140,7 +140,7 @@ atmos-aft must run in the CT home region. Multi-region workloads are supported i
 
 ## 4. Quickstart
 
-Eight numbered steps, in order. Steps 5 and 6 are manual today — the surrounding automation is on the way. See [`gha-design.md` §4](docs/architecture/gha-design.md#4-auth-paths) and [`atmos-model.md` §7](docs/architecture/atmos-model.md#7-workflows) for design detail.
+Eight numbered steps, in order. `atmos bootstrap` drives steps 3, 5, and 6 end-to-end — steps 5 and 6 are the same command re-run after the scaffold PR merges. See [`gha-design.md` §4](docs/architecture/gha-design.md#4-auth-paths) and [`atmos-model.md` §7](docs/architecture/atmos-model.md#7-workflows) for design detail.
 
 ### Step 1 — Install Atmos (Required)
 
@@ -171,33 +171,34 @@ The command gathers answers interactively, then writes a stack scaffold under `s
 | Flag | Effect |
 |---|---|
 | `--answers FILE` | Read answers from a YAML file (`.answers.<key>: <value>`); skip all prompts. Required in non-TTY contexts. |
-| `--dry-run` | Render templates to stdout and print the write-plan; change nothing on disk or in git. |
+| `--dry-run` | Print plans and intended commands for every phase; execute nothing. |
 | `--print-questions` | Emit the answer-file schema (`scripts/bootstrap/questions.yaml`) and exit. Pipe into `--answers` to script bootstraps. |
-| `--skip-remote` | Write the scaffold locally but skip the branch / commit / push / PR steps. |
+| `--skip-remote` | Stop after the local scaffold: don't commit, push, or open a PR. |
+| `--yes` / `-y` | Non-interactive: auto-continue between phases. |
+| `--phase A\|B\|C\|D` | Run only one phase. |
+| `--from A\|B\|C\|D` | Start at this phase. |
+| `--to A\|B\|C\|D` | Stop after this phase. |
 
-Re-running against an existing scaffold prompts for continue / rescaffold / abort; non-interactive runs rescaffold in place.
+Re-running against an existing scaffold prompts for continue / rescaffold / abort; non-interactive runs rescaffold in place. After this first run, the command exits with `PHASE B complete. Merge the PR, then re-run 'atmos bootstrap' to continue.`
 
 ### Step 4 — Review and merge the scaffold PR (Required)
 
 Open the PR the previous step produced, read the rendered stack YAML (it's the only surface CI will plan against), and merge. The merge enables `push-main.yaml` for the namespace; subsequent pushes start driving the workflow DAG.
 
-### Step 5 — Apply the central bootstrap components (Required — manual today, automation coming)
+### Step 5 — Apply the central bootstrap components (Required)
 
-From the atmos-aft management account using `OrganizationAccountAccessRole`, apply these three components locally, in order:
-
-```bash
-atmos terraform apply github-oidc-provider      -s aft-gbl-mgmt
-atmos terraform apply iam-deployment-roles/central -s aft-gbl-mgmt
-atmos terraform apply tfstate-backend-central    -s aft-gbl-mgmt
-```
-
-This stamps `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`, the GitHub OIDC provider, and the central bootstrap state bucket. Until this step is folded into the `atmos bootstrap` command, the three applies run by hand against static credentials. After this, no workflow needs static AWS credentials; GHA authenticates via OIDC.
-
-### Step 6 — Run the fleet-bootstrap workflow (Required — manual today, automation coming)
+With the scaffold PR merged on `main`, pull locally and re-run the same command from the atmos-aft management account, holding `OrganizationAccountAccessRole` credentials in your shell:
 
 ```bash
-gh workflow run bootstrap.yaml
+git pull --ff-only
+atmos bootstrap
 ```
+
+Phase A re-loads the captured answers, detects the existing `_defaults.yaml`, skips Phase B, and proceeds to Phase C: three idempotent `atmos terraform apply` calls against the central stack (`aft-gbl-mgmt`, or `core-gbl-mgmt` under the single-account topology), in order — `github-oidc-provider`, `iam-deployment-roles/central`, and `tfstate-backend-central` with `init -reconfigure -migrate-state` for the local→S3 state transition. Each step short-circuits if the AWS resource already exists (OIDC provider ARN, IAM role, S3 bucket), so safe to re-run. After Phase C, `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`, the GitHub OIDC provider, and the central bootstrap state bucket are in place; GHA thereafter authenticates via OIDC with no static credentials.
+
+### Step 6 — Run the fleet-bootstrap workflow (Required)
+
+The same `atmos bootstrap` invocation continues into Phase D, which dispatches `bootstrap.yaml` via `gh workflow run` with the captured namespace + topology flags and streams the run. If a successful `bootstrap.yaml` run landed in the last 24 hours, the phase offers to skip. `--phase D` runs this phase alone once you're comfortable with the pattern.
 
 The workflow stamps `AtmosDeploymentRole` and a per-account `tfstate-backend` into every CT-core account (ct-mgmt, aft-mgmt, audit, log-archive — three only when `separate_aft_mgmt_account=false`) via `_bootstrap-target.yaml`, falling back to `OrganizationAccountAccessRole` on first touch. It also primes security-service delegation for GuardDuty, Security Hub, and Inspector2 through phases 1 and 2 (see [Security-service phased rollout](#security-service-phased-rollout)); members enrol through phase 3 as `provision-account.yaml` vends them.
 
