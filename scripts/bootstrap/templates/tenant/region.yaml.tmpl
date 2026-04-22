@@ -1,0 +1,18 @@
+import:
+  - orgs/{{ .namespace }}/{{ .example_tenant }}/_defaults
+  - mixins/tenant/{{ .example_tenant }}
+  - mixins/region/{{ .primary_region }}
+  - mixins/stage/dev
+  - catalog/account-classes/vended
+  - catalog/account-provisioning/defaults
+
+vars:
+  account_name: {{ .example_tenant }}-dev
+  account_email: aws+{{ .example_tenant }}-dev@{{ .org_name }}.example
+  managed_organizational_unit: Sandbox
+  sso_user_email: {{ .example_tenant }}-oncall@{{ .org_name }}.example
+  sso_user_first_name: {{ .example_tenant_title }}
+  sso_user_last_name: Dev
+  account_tags:
+    owner: team-{{ .example_tenant }}
+    stage: dev

@@ -1,0 +1,10 @@
+import:
+  - orgs/{{ .namespace }}/_defaults
+  - mixins/tenant/core
+  - mixins/region/global
+  - mixins/stage/mgmt
+  - catalog/account-classes/ct-mgmt
+
+vars:
+  account_id: "{{ .management_account_id }}"
+  account_name: ct-mgmt

@@ -1,0 +1,19 @@
+import:
+  - orgs/acme/plat/_defaults
+  - mixins/tenant/plat
+  - mixins/region/us-east-1
+  - mixins/stage/dev
+  - catalog/account-classes/vended
+  - catalog/account-provisioning/defaults
+
+vars:
+  account_name: plat-dev
+  account_email: aws+plat-dev@acme-corp.example
+  managed_organizational_unit: Sandbox
+  sso_user_email: plat-oncall@acme-corp.example
+  sso_user_first_name: Plat
+  sso_user_last_name: Dev
+  account_tags:
+    owner: team-plat
+    stage: dev
+

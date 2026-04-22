@@ -1,0 +1,10 @@
+import:
+  - orgs/{{ .namespace }}/_defaults
+  - mixins/tenant/aft
+  - mixins/region/global
+  - mixins/stage/mgmt
+  - catalog/account-classes/aft-mgmt
+
+vars:
+  account_id: "{{ .aft_mgmt_account_id }}"
+  account_name: aft-mgmt

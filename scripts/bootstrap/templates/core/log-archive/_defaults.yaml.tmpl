@@ -1,0 +1,10 @@
+import:
+  - orgs/{{ .namespace }}/_defaults
+  - mixins/tenant/core
+  - mixins/region/global
+  - mixins/stage/log-archive
+  - catalog/account-classes/log-archive
+
+vars:
+  account_id: "{{ .log_archive_account_id }}"
+  account_name: log-archive

@@ -131,6 +131,19 @@ commands:
     description: "Emit GHA job matrix of affected components (stack,component)"
     steps:
       - "atmos describe affected --format json --ref origin/main"
+  - name: "bootstrap"
+    description: "Interactive gather + local scaffold for a new namespace (slice 1 — no AWS/terraform)"
+    flags:
+      - name: answers
+        usage: "Path to a YAML answer file; skips interactive prompts"
+      - name: dry-run
+        usage: "Print the plan + rendered diffs without writing files"
+      - name: print-questions
+        usage: "Emit the answer-file schema on stdout and exit"
+      - name: skip-remote
+        usage: "Write scaffold locally but skip branch/commit/PR"
+    steps:
+      - "bash scripts/bootstrap/run.sh {{ if .Flags.answers }}--answers {{ .Flags.answers }}{{ end }} {{ if .Flags.dry-run }}--dry-run{{ end }} {{ if .Flags.print-questions }}--print-questions{{ end }} {{ if .Flags.skip-remote }}--skip-remote{{ end }}"
 
 settings:
   list_merge_strategy: "replace"

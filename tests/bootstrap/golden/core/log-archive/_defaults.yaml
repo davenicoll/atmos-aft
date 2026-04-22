@@ -1,0 +1,10 @@
+import:
+  - orgs/acme/_defaults
+  - mixins/tenant/core
+  - mixins/region/global
+  - mixins/stage/log-archive
+  - catalog/account-classes/log-archive
+
+vars:
+  account_id: "444444444444"
+  account_name: log-archive

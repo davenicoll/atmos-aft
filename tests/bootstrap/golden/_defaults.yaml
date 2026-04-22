@@ -1,0 +1,21 @@
+import:
+  - orgs/_defaults
+
+vars:
+  namespace: acme
+  tags:
+    ManagedBy: atmos-aft
+    Org: acme-corp
+  separate_aft_mgmt_account: true
+
+settings:
+  aft_mgmt_account_id: "222222222222"
+  ct_mgmt_account_id: "111111111111"
+  audit_account_id: "333333333333"
+  log_archive_account_id: "444444444444"
+  primary_region: us-east-1
+  aws_auth_mode: oidc
+  dispatch_auth_mode: github_app
+  ct_landing_zone_id: "arn:aws:controltower:us-east-1:111111111111:landingzone/ABCD1234"
+  github_org: acme-corp
+  github_repo: atmos-aft

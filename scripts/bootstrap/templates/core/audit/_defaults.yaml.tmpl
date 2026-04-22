@@ -1,0 +1,10 @@
+import:
+  - orgs/{{ .namespace }}/_defaults
+  - mixins/tenant/core
+  - mixins/region/global
+  - mixins/stage/audit
+  - catalog/account-classes/audit
+
+vars:
+  account_id: "{{ .audit_account_id }}"
+  account_name: audit

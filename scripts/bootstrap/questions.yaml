@@ -1,0 +1,43 @@
+questions:
+  - key: namespace
+    prompt: "Namespace (2-5 chars, lowercase alnum starting with a letter)"
+    validate: "^[a-z][a-z0-9]{1,4}$"
+  - key: org_name
+    prompt: "Organization name (display label, e.g. acme-corp)"
+    validate: "^[A-Za-z][A-Za-z0-9-]{1,63}$"
+  - key: management_account_id
+    prompt: "CT management account ID (12 digits)"
+    validate: "^[0-9]{12}$"
+  - key: log_archive_account_id
+    prompt: "Log-archive account ID (12 digits)"
+    validate: "^[0-9]{12}$"
+  - key: audit_account_id
+    prompt: "Audit account ID (12 digits)"
+    validate: "^[0-9]{12}$"
+  - key: aft_mgmt_account_id
+    prompt: "AFT management account ID (12 digits; reuse management id for single-topology)"
+    validate: "^[0-9]{12}$"
+  - key: topology
+    prompt: "Topology"
+    choices: [separate, single]
+  - key: aws_auth_mode
+    prompt: "AWS auth mode"
+    choices: [oidc, access_key]
+  - key: primary_region
+    prompt: "Primary AWS region (e.g. us-east-1)"
+    validate: "^[a-z]{2}-[a-z]+-[0-9]$"
+  - key: github_org
+    prompt: "GitHub org"
+    default_from: "git remote"
+    validate: "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
+  - key: github_repo
+    prompt: "GitHub repo"
+    default_from: "git remote"
+    validate: "^[A-Za-z0-9._-]{1,100}$"
+  - key: ct_landing_zone_id
+    prompt: "Control Tower landing zone ID"
+    default_from: "aws controltower list-landing-zones"
+    validate: "^arn:aws[a-z-]*:controltower:[a-z0-9-]+:[0-9]{12}:landingzone/[A-Z0-9]+$"
+  - key: dispatch_auth_mode
+    prompt: "Workflow dispatch auth"
+    choices: [github_app, pat]
