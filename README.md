@@ -178,7 +178,7 @@ Both slices land behind the same stack catalog the scaffold produced — no extr
 
 ### 4.3 Request your first account
 
-Create `stacks/orgs/<your-org>/<tenant>/<stage>/<region>.yaml`. Stack name is rendered as `{tenant}-{region-short}-{stage}` (example: `plat-use1-dev`). The shipped `stacks/orgs/example-accounts/` tree is the worked example for the default `separate_aft_mgmt_account=true` topology; an `example-accounts-single/` sibling for the single-account topology arrives via the P2.1 follow-up. A working leaf stack from `example-accounts/`:
+Create `stacks/orgs/<your-org>/<tenant>/<stage>/<region>.yaml`. Stack name is rendered as `{tenant}-{region-short}-{stage}` (example: `plat-use1-dev`). Two worked examples ship side-by-side: `stacks/orgs/example-accounts/` for the default `separate_aft_mgmt_account=true` (dual-account) topology, and `stacks/orgs/example-accounts-single/` for `separate_aft_mgmt_account=false` (single-account: ct-mgmt absorbs the AFT-central catalogs). The single-account tree is excluded from default stack discovery to avoid `{tenant}-{environment}-{stage}` key collisions — see its README for how to run it. A working leaf stack from `example-accounts/`:
 
 ```yaml
 import:

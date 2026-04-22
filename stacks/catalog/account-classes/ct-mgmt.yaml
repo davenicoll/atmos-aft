@@ -1,6 +1,13 @@
 # CT management account class. Holds Organizations/OU/CloudTrail org trail.
 # Bootstrap role is OAAR — AtmosDeploymentRole is stamped in via step 5 of
 # bootstrap.yaml (gha-design.md §5.8).
+#
+# Single-account topology (separate_aft_mgmt_account=false): the AFT-central
+# catalogs (tfstate-backend-central, iam-deployment-roles/central,
+# github-oidc-provider, controltower-event-bridge) are imported directly into
+# the ct-mgmt stack instead of a separate aft-mgmt stack. account_class stays
+# ct-mgmt; the aft-mgmt class file is never imported in that topology. See
+# stacks/orgs/example-accounts-single/ for a worked example.
 vars:
   account_class: ct-mgmt
   bootstrap_role: OrganizationAccountAccessRole
