@@ -124,7 +124,7 @@ Before running atmos-aft's bootstrap:
    - `AFT_AUTH_MODE` — `oidc` (default) or `access_key` (dev-only).
    - `ATMOS_EXTERNAL_ID` — static UUID used as `sts:ExternalId` when assuming CT-core roles.
 4. **GitHub OIDC provider** in the atmos-aft management account (`arn:aws:iam::<aft-mgmt>:oidc-provider/token.actions.githubusercontent.com`). Provisioned by the `bootstrap.yaml` workflow on first run.
-5. **A bootstrap identity** with programmatic AWS credentials sufficient to create the OIDC provider and the central deployment role on first run. This is used exactly once, then rotated out. See `gha-design.md` §4.5 for the exact permissions.
+5. **A bootstrap identity** with programmatic AWS credentials sufficient to create the OIDC provider and the central deployment role on first run. This is used exactly once, then rotated out. See [`gha-design.md` §4.5](docs/architecture/gha-design.md#45-bootstrap-identity-for-newly-vended-accounts) for the exact permissions.
 6. **Service Catalog Account Factory portfolio** shared with the atmos-aft management account (handled by `iam-roles-management`'s `associate_aft_service_role_with_account_factory` step if missing).
 7. **CloudTrail Lake event data store** in the audit account, or provision via the `cloudtrail-lake` component during bootstrap.
 
@@ -140,7 +140,7 @@ atmos-aft must run in the CT home region. Multi-region workloads are supported i
 
 ## 4. Quickstart
 
-Eight numbered steps, in order. Steps 5 and 6 are manual today — the surrounding automation is on the way. See `docs/architecture/gha-design.md` §4 and `atmos-model.md` §7 for design detail.
+Eight numbered steps, in order. Steps 5 and 6 are manual today — the surrounding automation is on the way. See [`gha-design.md` §4](docs/architecture/gha-design.md#4-auth-paths) and [`atmos-model.md` §7](docs/architecture/atmos-model.md#7-workflows) for design detail.
 
 ### Step 1 — Install Atmos (Required)
 
@@ -199,7 +199,7 @@ This stamps `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStat
 gh workflow run bootstrap.yaml
 ```
 
-The workflow stamps `AtmosDeploymentRole` and a per-account `tfstate-backend` into every CT-core account (ct-mgmt, aft-mgmt, audit, log-archive — three only when `separate_aft_mgmt_account=false`) via `_bootstrap-target.yaml`, falling back to `OrganizationAccountAccessRole` on first touch. It also primes security-service delegation for GuardDuty, Security Hub, and Inspector2 through phases 1 and 2 (see §2 Security-service phased rollout); members enrol through phase 3 as `provision-account.yaml` vends them.
+The workflow stamps `AtmosDeploymentRole` and a per-account `tfstate-backend` into every CT-core account (ct-mgmt, aft-mgmt, audit, log-archive — three only when `separate_aft_mgmt_account=false`) via `_bootstrap-target.yaml`, falling back to `OrganizationAccountAccessRole` on first touch. It also primes security-service delegation for GuardDuty, Security Hub, and Inspector2 through phases 1 and 2 (see [Security-service phased rollout](#security-service-phased-rollout)); members enrol through phase 3 as `provision-account.yaml` vends them.
 
 ### Step 7 — Request your first account (Required)
 
@@ -302,7 +302,7 @@ The common vars — these mirror AFT's `control_tower_parameters` plus atmos-aft
 
 ### 5.3 Workflow inputs
 
-Per entry-point workflow. Full list in `docs/architecture/gha-design.md` §3. The ones an operator runs by hand:
+Per entry-point workflow. Full list in [`gha-design.md` §3](docs/architecture/gha-design.md#3-topology-overview). The ones an operator runs by hand:
 
 | Workflow | Key inputs | When to use |
 |----------|------------|-------------|
@@ -324,7 +324,7 @@ Intentional cuts; these have no analogue in atmos-aft:
 | `concurrent_account_factory_actions` | `AFT_PROVISION_PARALLELISM` repo variable; per-concurrency-group. |
 | `terraform_oidc_*` | Replaced by GitHub OIDC (first-class; `terraform_oidc_integration` becomes trivially `true` when using TFC). |
 | `backup_recovery_point_retention` | Not applicable — no AFT-owned DynamoDB tables; Git + SSM are the request + metadata plane. |
-| `tf_backend_secondary_region` | Not applicable — atmos-aft is single-region; see `docs/architecture/atmos-model.md` §9.3.4. State replication is a per-account bucket opt-in, not a global toggle. |
+| `tf_backend_secondary_region` | Not applicable — atmos-aft is single-region; see [`atmos-model.md` §9.3.4](docs/architecture/atmos-model.md#934-dr--dual-region--deferred). State replication is a per-account bucket opt-in, not a global toggle. |
 | `cloudwatch_log_group_enable_cmk_encryption`, `sns_topic_enable_cmk_encryption` | Uniformly CMK-encrypted. No AWS-managed-key fallback. |
 
 Per-input parity is audited in [`docs/architecture/readme-audit.md`](docs/architecture/readme-audit.md).
@@ -534,7 +534,7 @@ Summary of the migration path:
 4. **Customization migration** — customer-owned Terraform ports directly. Backend Jinja files are deleted (atmos-aft renders natively). The `aft-account-provisioning-customizations` SFN is rewritten as GHA jobs.
 5. **Decommission AFT** — once the last account is migrated, destroy AFT's Terraform root module, remove the `AWSAFT*` roles, archive the AFT state bucket.
 
-Rollback is documented in [`migration-from-aft.md`](docs/architecture/migration-from-aft.md) §8 — atmos-aft is non-destructive up to the AFT-decommission step.
+Rollback is documented in [`migration-from-aft.md` §8](docs/architecture/migration-from-aft.md#8-rollback) — atmos-aft is non-destructive up to the AFT-decommission step.
 
 ---
 
@@ -542,7 +542,7 @@ Rollback is documented in [`migration-from-aft.md`](docs/architecture/migration-
 
 ### 11.1 Adding an account
 
-PR a new `stacks/orgs/<org>/<tenant>/<account>/<region>.yaml`. Merge. That's it. See [§4.3](#43-request-your-first-account).
+PR a new `stacks/orgs/<org>/<tenant>/<account>/<region>.yaml`. Merge. That's it. See [Step 7](#step-7--request-your-first-account-required).
 
 ### 11.2 Updating an account
 
