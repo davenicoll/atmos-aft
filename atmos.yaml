@@ -133,18 +133,26 @@ commands:
     steps:
       - "atmos describe affected --format json --ref origin/main"
   - name: "bootstrap"
-    description: "Interactive gather + local scaffold for a new namespace (slice 1 — no AWS/terraform)"
+    description: "End-to-end bootstrap: A gather · B scaffold+PR · C apply central · D dispatch fleet"
     flags:
       - name: answers
         usage: "Path to a YAML answer file; skips interactive prompts"
       - name: dry-run
-        usage: "Print the plan + rendered diffs without writing files"
+        usage: "Print plans + intended commands for every phase; execute nothing"
       - name: print-questions
         usage: "Emit the answer-file schema on stdout and exit"
       - name: skip-remote
         usage: "Write scaffold locally but skip branch/commit/PR"
+      - name: yes
+        usage: "Non-interactive: auto-continue between phases"
+      - name: phase
+        usage: "Run only this phase (A|B|C|D)"
+      - name: from
+        usage: "Start at this phase"
+      - name: to
+        usage: "Stop after this phase"
     steps:
-      - "bash scripts/bootstrap/run.sh {{ if .Flags.answers }}--answers {{ .Flags.answers }}{{ end }} {{ if .Flags.dry-run }}--dry-run{{ end }} {{ if .Flags.print-questions }}--print-questions{{ end }} {{ if .Flags.skip-remote }}--skip-remote{{ end }}"
+      - "bash scripts/bootstrap/run.sh {{ if .Flags.answers }}--answers {{ .Flags.answers }}{{ end }} {{ if .Flags.dry-run }}--dry-run{{ end }} {{ if .Flags.print-questions }}--print-questions{{ end }} {{ if .Flags.skip-remote }}--skip-remote{{ end }} {{ if .Flags.yes }}--yes{{ end }} {{ if .Flags.phase }}--phase {{ .Flags.phase }}{{ end }} {{ if .Flags.from }}--from {{ .Flags.from }}{{ end }} {{ if .Flags.to }}--to {{ .Flags.to }}{{ end }}"
 
 settings:
   list_merge_strategy: "replace"
