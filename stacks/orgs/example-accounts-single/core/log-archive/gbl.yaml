@@ -1,0 +1,13 @@
+import:
+  - orgs/example-accounts-single/_defaults
+  - mixins/tenant/core
+  - mixins/region/global
+  - mixins/stage/log-archive
+  - catalog/account-classes/log-archive
+  - catalog/tfstate-backend/defaults
+  - catalog/iam-deployment-roles/target/defaults
+  - catalog/aws-account-settings/defaults
+
+vars:
+  account_id: "444444444444"
+  account_name: log-archive

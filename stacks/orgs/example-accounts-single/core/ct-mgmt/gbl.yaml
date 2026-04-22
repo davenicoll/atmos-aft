@@ -1,0 +1,27 @@
+import:
+  - orgs/example-accounts-single/_defaults
+  - mixins/tenant/core
+  - mixins/region/global
+  - mixins/stage/mgmt
+  - catalog/account-classes/ct-mgmt
+  - catalog/tfstate-backend/defaults
+  - catalog/tfstate-backend-central/defaults
+  - catalog/iam-deployment-roles/central/defaults
+  - catalog/iam-deployment-roles/target/defaults
+  - catalog/github-oidc-provider/defaults
+  - catalog/controltower-event-bridge/defaults
+  - catalog/aws-account-settings/defaults
+  - catalog/aws-scp/defaults
+  - catalog/guardduty-root/defaults
+
+vars:
+  account_id: "111111111111"
+  account_name: ct-mgmt
+
+components:
+  terraform:
+    aws-scp:
+      vars:
+        description: "atmos-aft baseline SCPs attached to the org root"
+        target_id: r-example
+        statements: []

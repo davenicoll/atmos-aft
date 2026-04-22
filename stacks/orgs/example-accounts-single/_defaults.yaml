@@ -1,0 +1,17 @@
+import:
+  - orgs/_defaults
+
+vars:
+  namespace: acme
+  tags:
+    ManagedBy: atmos-aft
+    Org: example-accounts-single
+  separate_aft_mgmt_account: false
+
+settings:
+  aft_mgmt_account_id: "111111111111"
+  ct_mgmt_account_id: "111111111111"
+  audit_account_id: "333333333333"
+  log_archive_account_id: "444444444444"
+  github_org: acme-corp
+  github_repo: atmos-aft

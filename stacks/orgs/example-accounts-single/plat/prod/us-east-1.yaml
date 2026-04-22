@@ -1,0 +1,27 @@
+import:
+  - orgs/example-accounts-single/_defaults
+  - mixins/tenant/plat
+  - mixins/region/us-east-1
+  - mixins/stage/prod
+  - catalog/account-classes/vended
+  - catalog/account-provisioning/defaults
+  - catalog/tfstate-backend/defaults
+  - catalog/iam-deployment-roles/target/defaults
+  - catalog/aws-account-settings/defaults
+  - catalog/guardduty-member-settings/defaults
+
+vars:
+  account_name: plat-prod
+  account_email: aws+plat-prod@acme.example
+  managed_organizational_unit: Production
+  sso_user_email: platform-oncall@acme.example
+  sso_user_first_name: Platform
+  sso_user_last_name: Prod
+  account_tags:
+    owner: team-platform
+    cost_center: CC-9000
+    stage: prod
+  feature_options:
+    delete_default_vpcs_enabled: true
+    enterprise_support: true
+    cloudtrail_data_events: true
