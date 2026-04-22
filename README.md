@@ -140,45 +140,70 @@ atmos-aft must run in the CT home region. Multi-region workloads are supported i
 
 ## 4. Quickstart
 
-See `docs/architecture/gha-design.md` §4 and `atmos-model.md` §7 for design detail.
+Eight numbered steps, in order. Steps 5 and 6 are manual today — the surrounding automation is on the way. See `docs/architecture/gha-design.md` §4 and `atmos-model.md` §7 for design detail.
 
-### 4.1 Clone and scaffold
+### Step 1 — Install Atmos (Required)
+
+```bash
+brew install cloudposse/tap/atmos      # or: go install github.com/cloudposse/atmos/cmd/atmos@latest
+atmos version
+```
+
+CI uses the same binary via the `setup-atmos` composite action; the version matches.
+
+### Step 2 — Clone the repo (Required)
 
 ```bash
 git clone git@github.com:<your-org>/atmos-aft.git
 cd atmos-aft
+```
 
-brew install cloudposse/tap/atmos           # or: go install github.com/cloudposse/atmos/cmd/atmos@latest
-atmos version
+Fork first if you intend to receive upstream updates; everything below assumes a working tree with an `origin` remote pointed at your fork.
 
+### Step 3 — Run `atmos bootstrap` (Required)
+
+```bash
 atmos bootstrap
 ```
 
-`atmos bootstrap` runs a Phase A interactive prompt (namespace, CT/log-archive/audit/aft-mgmt account IDs, topology, AWS auth mode, primary region, GitHub org+repo, CT landing-zone ARN, workflow dispatch auth), then Phase B renders `stacks/orgs/<namespace>/` from answers, commits to `bootstrap/<namespace>-init`, and opens a PR. Review and merge the PR to enable CI for the namespace; the terminal prints the remaining bootstrap steps.
-
-Flags:
+The command gathers answers interactively, then writes a stack scaffold under `stacks/orgs/<namespace>/` and opens a PR from `bootstrap/<namespace>-init`. Answers collected: namespace (2–5 chars), org display name, CT / log-archive / audit / AFT-mgmt account IDs, topology (`separate` or `single`), AWS auth mode (`oidc` or `access_key`), primary region, GitHub org + repo, Control Tower landing-zone ARN, and workflow-dispatch auth (`github_app` or `pat`). `github_org` and `github_repo` default from your `origin` remote; `ct_landing_zone_id` defaults from `aws controltower list-landing-zones` when the AWS CLI is configured.
 
 | Flag | Effect |
 |---|---|
-| `--answers FILE` | Read answers from YAML (`.answers.<key>: <value>`); skip all prompts. Required in non-TTY contexts. |
+| `--answers FILE` | Read answers from a YAML file (`.answers.<key>: <value>`); skip all prompts. Required in non-TTY contexts. |
 | `--dry-run` | Render templates to stdout and print the write-plan; change nothing on disk or in git. |
 | `--print-questions` | Emit the answer-file schema (`scripts/bootstrap/questions.yaml`) and exit. Pipe into `--answers` to script bootstraps. |
 | `--skip-remote` | Write the scaffold locally but skip the branch / commit / push / PR steps. |
 
-Defaults: `github_org` and `github_repo` fall back to `origin`'s remote; `ct_landing_zone_id` falls back to `aws controltower list-landing-zones` if AWS CLI is configured. Re-running against an existing scaffold prompts for continue / rescaffold / abort (non-interactive runs rescaffold in place).
+Re-running against an existing scaffold prompts for continue / rescaffold / abort; non-interactive runs rescaffold in place.
 
-### 4.2 Apply the bootstrap
+### Step 4 — Review and merge the scaffold PR (Required)
 
-Slice 1 (the `atmos bootstrap` command above) only produces stack YAML and a PR. The two follow-on slices are manual today:
+Open the PR the previous step produced, read the rendered stack YAML (it's the only surface CI will plan against), and merge. The merge enables `push-main.yaml` for the namespace; subsequent pushes start driving the workflow DAG.
 
-1. **Local apply (slice 2 — coming next).** After the scaffold PR merges, apply `github-oidc-provider`, `iam-deployment-roles/central`, and `tfstate-backend-central` locally from the AFT management account using `OrganizationAccountAccessRole`. This stamps `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`, the OIDC provider, and the central bootstrap state bucket. Until slice 2 lands, run the three components by hand (`atmos terraform apply <component> -s <stack>`) using static credentials.
-2. **Fleet bootstrap via GHA (slice 3 — coming next).** Once the central roles exist, `gh workflow run bootstrap.yaml` finishes the job: stamps `AtmosDeploymentRole` + per-account `tfstate-backend` into CT-core accounts (CT-mgmt, AFT-mgmt, audit, log-archive — three only when `separate_aft_mgmt_account=false`) via `_bootstrap-target.yaml` with `OrganizationAccountAccessRole` as fallback identity, and primes security-service delegation (GuardDuty, Security Hub, Inspector2 phases 1+2 only — empty `target_stacks` at bootstrap; members join as they vend).
+### Step 5 — Apply the central bootstrap components (Required — manual today, automation coming)
 
-Both slices land behind the same stack catalog the scaffold produced — no extra configuration.
+From the atmos-aft management account using `OrganizationAccountAccessRole`, apply these three components locally, in order:
 
-### 4.3 Request your first account
+```bash
+atmos terraform apply github-oidc-provider      -s aft-gbl-mgmt
+atmos terraform apply iam-deployment-roles/central -s aft-gbl-mgmt
+atmos terraform apply tfstate-backend-central    -s aft-gbl-mgmt
+```
 
-Create `stacks/orgs/<your-org>/<tenant>/<stage>/<region>.yaml`. Stack name is rendered as `{tenant}-{region-short}-{stage}` (example: `plat-use1-dev`). Two worked examples ship side-by-side: `stacks/orgs/example-accounts/` for the default `separate_aft_mgmt_account=true` (dual-account) topology, and `stacks/orgs/example-accounts-single/` for `separate_aft_mgmt_account=false` (single-account: ct-mgmt absorbs the AFT-central catalogs). The single-account tree is excluded from default stack discovery to avoid `{tenant}-{environment}-{stage}` key collisions — see its README for how to run it. A working leaf stack from `example-accounts/`:
+This stamps `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`, the GitHub OIDC provider, and the central bootstrap state bucket. Until this step is folded into the `atmos bootstrap` command, the three applies run by hand against static credentials. After this, no workflow needs static AWS credentials; GHA authenticates via OIDC.
+
+### Step 6 — Run the fleet-bootstrap workflow (Required — manual today, automation coming)
+
+```bash
+gh workflow run bootstrap.yaml
+```
+
+The workflow stamps `AtmosDeploymentRole` and a per-account `tfstate-backend` into every CT-core account (ct-mgmt, aft-mgmt, audit, log-archive — three only when `separate_aft_mgmt_account=false`) via `_bootstrap-target.yaml`, falling back to `OrganizationAccountAccessRole` on first touch. It also primes security-service delegation for GuardDuty, Security Hub, and Inspector2 through phases 1 and 2 (see §2 Security-service phased rollout); members enrol through phase 3 as `provision-account.yaml` vends them.
+
+### Step 7 — Request your first account (Required)
+
+Create `stacks/orgs/<your-org>/<tenant>/<stage>/<region>.yaml`. The stack name is rendered as `{tenant}-{region-short}-{stage}` (example: `plat-use1-dev`). Two worked examples ship: `stacks/orgs/example-accounts/` for the default dual-account topology (`separate_aft_mgmt_account=true`) and `stacks/orgs/example-accounts-single/` for the single-account topology (ct-mgmt absorbs the AFT-central catalogs). The single-account tree is excluded from default stack discovery to avoid `{tenant}-{environment}-{stage}` key collisions — see its README before enabling it. A working leaf stack from `example-accounts/`:
 
 ```yaml
 import:
@@ -216,11 +241,10 @@ The `catalog/account-classes/<class>` import picks the account's baseline identi
 
 Open a PR. CI runs `pr.yaml` and plans every affected instance read-only. Merge, and `push-main.yaml` dispatches `provision-account.yaml`. End-to-end typically 15–30 minutes, dominated by CT Account Factory.
 
-
-### 4.4 Watch progress
+### Step 8 — Watch progress (Optional)
 
 ```bash
-gh run watch                                             # most recent run
+gh run watch                                                        # most recent run
 aws ssm get-parameter --name /aft/account/my-first-account/status   # provisioning | baseline-deployed | customized | failed
 ```
 
@@ -247,7 +271,7 @@ Inputs in atmos-aft split across three surfaces:
 | `TERRAFORM_CLOUD_TOKEN` | repo secret | string | — | Required when `terraform_distribution=tfc|tfe`. Also sensitive in state. |
 | `terraform_org_name` | `bootstrap.yaml` input | string | — | Required when `terraform_distribution=tfc|tfe`. HCP Terraform organisation name; maps to upstream AFT's `terraform_org_name`. |
 | `terraform_project_name` | `bootstrap.yaml` input | string | `Default Project` | Required when `terraform_distribution=tfc|tfe`. HCP Terraform project containing atmos-aft workspaces; used in the OIDC `sub` claim condition on `AtmosCentralDeploymentRole`. Must exist pre-deploy. Maps to upstream AFT's `terraform_project_name`. |
-| `AFT_PROVISION_PARALLELISM` | repo var | number | `1` | Global single-lane default; widened in phase 2 after validation. |
+| `AFT_PROVISION_PARALLELISM` | repo var | number | `1` | Global single-lane default; widen after empirical validation. |
 | `AFT_CUSTOMIZE_PARALLELISM` | repo var | number | `4` | Per-scope matrix `max-parallel`. |
 
 ### 5.2 Stack vars (per account)
