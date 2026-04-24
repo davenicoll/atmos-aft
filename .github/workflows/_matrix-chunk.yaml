@@ -36,7 +36,7 @@ jobs:
       chunk_count: ${{ steps.split.outputs.chunk_count }}
       chunk_indices: ${{ steps.split.outputs.chunk_indices }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - id: split
         shell: bash
         env:

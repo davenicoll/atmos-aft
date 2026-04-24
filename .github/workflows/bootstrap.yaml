@@ -39,7 +39,7 @@ jobs:
       audit_stack: ${{ steps.resolve.outputs.audit_stack }}
       log_archive_stack: ${{ steps.resolve.outputs.log_archive_stack }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - uses: ./.github/actions/configure-aws
         with:
@@ -115,8 +115,6 @@ jobs:
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
       component: github-oidc-provider
-      environment: bootstrap
-      auth_mode: access_key
     secrets: inherit
 
   central-roles:
@@ -126,8 +124,6 @@ jobs:
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
       component: iam-deployment-roles/central
-      environment: bootstrap
-      auth_mode: access_key
     secrets: inherit
 
   tfstate-backend-aft-mgmt:
@@ -137,7 +133,6 @@ jobs:
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
       component: tfstate-backend
-      environment: bootstrap
     secrets: inherit
 
   stamp-roles-ct-mgmt:

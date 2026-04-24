@@ -74,15 +74,26 @@ runs:
         commit_author="${COMMIT_AUTHOR:-$GH_ACTOR}"
 
         put() {
-          aws ssm put-parameter \
-            --region "$region" \
-            --name "$1" \
-            --type String \
-            --value "$2" \
-            --overwrite >/dev/null
+          local name="$1" value="$2"
+          for attempt in 1 2 3; do
+            if aws ssm put-parameter \
+              --region "$region" \
+              --name "$name" \
+              --type String \
+              --value "$value" \
+              --overwrite >/dev/null; then
+              return 0
+            fi
+            echo "::warning::put-parameter '$name' attempt $attempt failed; retrying" >&2
+            sleep $((attempt * attempt))
+          done
+          echo "::error::Failed to put SSM parameter '$name' after 3 attempts" >&2
+          return 1
         }
 
-        put "${prefix}/status" "$STATUS"
+        # Write audit/metadata first so the status-transition is atomic from a consumer's view:
+        # if any of these partial writes fail, status remains at its previous value rather than
+        # advertising a new status pointing at stale audit fields.
         put "${prefix}/status-updated-at" "$now"
         put "${prefix}/triggered_by_sha" "$GH_SHA"
         put "${prefix}/triggered_by_commit_author" "$commit_author"
@@ -91,13 +102,14 @@ runs:
         if [[ -n "$STACK" ]]; then
           put "${prefix}/stack" "$STACK"
         fi
-
         if [[ -n "$EXTRA" ]]; then
           while IFS='=' read -r k v; do
             [[ -z "$k" ]] && continue
             put "${prefix}/${k}" "$v"
           done <<< "$EXTRA"
         fi
+        # Write the status pointer LAST.
+        put "${prefix}/status" "$STATUS"
 
         echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
         echo "Published status=$STATUS to $prefix" >> "$GITHUB_STEP_SUMMARY"

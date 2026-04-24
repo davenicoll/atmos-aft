@@ -47,7 +47,7 @@ jobs:
             *-prod*)    echo "environment=prod" >> "$GITHUB_OUTPUT" ;;
             *)          echo "environment=non-prod" >> "$GITHUB_OUTPUT" ;;
           esac
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - id: ct
         shell: bash
@@ -77,7 +77,6 @@ jobs:
     with:
       stack: ${{ inputs.stack }}
       component: account-provisioning
-      environment: aft-mgmt
       retry_attempts: 1
     secrets: inherit
 
@@ -91,7 +90,7 @@ jobs:
       account_id: ${{ steps.pub.outputs.account_id }}
       account_name: ${{ steps.ctx.outputs.account_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - id: ctx
         uses: ./.github/actions/resolve-stack
@@ -146,7 +145,6 @@ jobs:
     with:
       stack: ${{ inputs.stack }}
       component: ${{ matrix.component }}
-      environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
   feature-options:
@@ -156,7 +154,6 @@ jobs:
     uses: ./.github/workflows/_feature-options.yaml
     with:
       stack: ${{ inputs.stack }}
-      environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
   baseline-config-rules:
@@ -167,7 +164,6 @@ jobs:
     with:
       stack: ${{ inputs.stack }}
       component: baseline-security/config-rules
-      environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
   # phase 3 fan-out only
@@ -223,7 +219,6 @@ jobs:
     uses: ./.github/workflows/_customize-global.yaml
     with:
       target_stacks: '["${{ inputs.stack }}"]'
-      environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
   customize-account:
@@ -233,7 +228,6 @@ jobs:
     uses: ./.github/workflows/_customize-account.yaml
     with:
       target_stacks: '["${{ inputs.stack }}"]'
-      environment: ${{ needs.resolve-env.outputs.environment }}
     secrets: inherit
 
   publish-status:
@@ -244,7 +238,7 @@ jobs:
     environment: aft-mgmt
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/configure-aws
         with:
           mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
