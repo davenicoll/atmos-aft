@@ -162,4 +162,11 @@ resource "aws_kms_key_policy" "this" {
 
   key_id = data.aws_kms_alias.tfstate[0].target_key_id
   policy = data.aws_iam_policy_document.kms_key_policy[0].json
+
+  # Losing this policy would lock every deployment role out of the state CMK.
+  # The underlying bucket + key are module-owned, so this is the only
+  # directly-declared protection surface available here.
+  lifecycle {
+    prevent_destroy = true
+  }
 }

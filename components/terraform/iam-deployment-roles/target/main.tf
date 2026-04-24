@@ -40,7 +40,10 @@ data "aws_iam_policy_document" "deployment_trust" {
     condition {
       test     = "StringLike"
       variable = "aws:userid"
-      values   = ["AROA*:atmos-*"]
+      values = [
+        "AROA*:atmos-aft",
+        "AROA*:atmos-aft-bootstrap",
+      ]
     }
   }
 }
@@ -93,7 +96,10 @@ data "aws_iam_policy_document" "readonly_trust" {
     condition {
       test     = "StringLike"
       variable = "aws:userid"
-      values   = ["AROA*:atmos-*"]
+      values = [
+        "AROA*:atmos-aft",
+        "AROA*:atmos-aft-bootstrap",
+      ]
     }
   }
 }
