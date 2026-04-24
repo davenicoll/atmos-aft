@@ -8,34 +8,52 @@ locals {
 
   central_role_principal = "arn:${data.aws_partition.current.partition}:iam::${var.aft_mgmt_account_id}:role/AtmosCentralDeploymentRole"
   readall_role_principal = "arn:${data.aws_partition.current.partition}:iam::${var.aft_mgmt_account_id}:role/AtmosReadAllStateRole"
+}
 
-  extra_bucket_statements = local.enabled ? jsonencode([
-    {
-      Sid       = "DenyInsecureTransport"
-      Effect    = "Deny"
-      Principal = "*"
-      Action    = "s3:*"
-      Resource = [
-        "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}",
-        "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}/*",
-      ]
-      Condition = { Bool = { "aws:SecureTransport" = "false" } }
-    },
-    {
-      Sid       = "AllowReadAllStateRoleRead"
-      Effect    = "Allow"
-      Principal = { AWS = local.readall_role_principal }
-      Action = [
-        "s3:GetObject",
-        "s3:ListBucket",
-        "s3:GetBucketVersioning",
-      ]
-      Resource = [
-        "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}",
-        "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}/*",
-      ]
-    },
-  ]) : "[]"
+# Supplementary bucket policy merged into the module-generated one via
+# source_policy_documents. Must be a FULL policy document (the
+# cloudposse/tfstate-backend module's aggregated_policy data source
+# parses each element as a complete policy with Version + Statement —
+# a bare statements array fails JSON validation at plan time).
+data "aws_iam_policy_document" "bucket_extra" {
+  count = local.enabled ? 1 : 0
+
+  statement {
+    sid     = "DenyInsecureTransport"
+    effect  = "Deny"
+    actions = ["s3:*"]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}",
+      "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}/*",
+    ]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  statement {
+    sid    = "AllowReadAllStateRoleRead"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:GetBucketVersioning",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}",
+      "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}/*",
+    ]
+    principals {
+      type        = "AWS"
+      identifiers = [local.readall_role_principal]
+    }
+  }
 }
 
 module "tfstate_backend" {
@@ -59,7 +77,7 @@ module "tfstate_backend" {
   # v1.9.0 takes the alias name in kms_master_key_id (no separate alias var).
   kms_master_key_id = local.kms_alias
 
-  source_policy_documents = [local.extra_bucket_statements]
+  source_policy_documents = local.enabled ? [data.aws_iam_policy_document.bucket_extra[0].json] : []
 
   context = module.this.context
 }
