@@ -233,7 +233,7 @@ Notable runtime primitives that exist in the stack but are **not** exposed as ro
 
 ## 7. Notes for the audit
 
-Tracked observations that will feed the readme-audit.md tables without needing to re-read the upstream README:
+Tracked observations that fed the Phase 2 [`archive/readme-audit.md`](archive/readme-audit.md) (archived) tables without needing to re-read the upstream README:
 
 - The README surfaces `terraform_oidc_integration`, but the descriptions of `terraform_oidc_aws_audience` and `terraform_oidc_hostname` refer to a non-existent `aft_feature_hcp_oidc` variable. Upstream doc bug; atmos-aft should document one toggle name and stick to it.
 - Every repo comes in pairs `{repo_name, repo_branch}`. Atmos-aft's factory config likely collapses these into a single object — note the expansion when auditing.

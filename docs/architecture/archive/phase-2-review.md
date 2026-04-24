@@ -1,5 +1,7 @@
 # Phase 2 Implementation Review
 
+> **Archived 2026-04-24.** The issues tracked here were resolved in commits 5fadcab, cf0206d, and the April 2026 audit sweep. For current state, see sibling docs in `docs/architecture/`.
+
 **Reviewer:** aws-architect
 **Task:** #25 (P2-review)
 **Date:** 2026-04-20
