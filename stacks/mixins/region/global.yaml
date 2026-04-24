@@ -1,5 +1,5 @@
-# Global (org-scope) resources. AWS region is pinned to the CT home region
-# but `environment` is `gbl` so stack names don't collide with regional instances.
+# Global (org-scope) resources. `environment` is `gbl` so stack names don't
+# collide with regional instances. The AWS home region is inherited from the
+# org-level `_defaults.yaml` (`vars.region`).
 vars:
-  region: us-east-1
   environment: gbl

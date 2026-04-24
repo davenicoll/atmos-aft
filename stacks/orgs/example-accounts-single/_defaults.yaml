@@ -3,12 +3,18 @@ import:
 
 vars:
   namespace: acme
+  # Home region for global-scoped resources (override per region-scoped stack)
+  region: us-east-1
   tags:
     ManagedBy: atmos-aft
     Org: example-accounts-single
+  # These values are consumed by scripts/bootstrap/run.sh, not by any Terraform component.
+  # Do not delete — bootstrap needs them.
   separate_aft_mgmt_account: false
 
 settings:
+  # These values are consumed by scripts/bootstrap/run.sh, not by any Terraform component.
+  # Do not delete — bootstrap needs them.
   aft_mgmt_account_id: "111111111111"
   ct_mgmt_account_id: "111111111111"
   audit_account_id: "333333333333"

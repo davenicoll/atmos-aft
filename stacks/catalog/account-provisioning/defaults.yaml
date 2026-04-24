@@ -49,10 +49,13 @@ components:
       metadata:
         component: account-provisioning
       vars: {}
-      settings:
-        spacelift:
-          workspace_enabled: false
       hooks:
         store-outputs:
           events: [after-terraform-apply]
-          command: !template 'aws ssm put-parameter --name "/aft/account/{{ .vars.account_name }}/account-id" --value "$(terraform output -raw account_id)" --type String --overwrite'
+          command: !template |
+            aid=$(terraform output -raw account_id 2>/dev/null || echo "")
+            if [ -z "$aid" ] || [ "$aid" = "null" ]; then
+              echo "ERROR: account_id not yet populated by Service Catalog. Re-run after ProvisionedProduct reaches AVAILABLE." >&2
+              exit 1
+            fi
+            aws ssm put-parameter --name "/aft/account/{{ .vars.account_name }}/account-id" --value "$aid" --type String --overwrite
