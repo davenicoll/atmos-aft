@@ -18,3 +18,9 @@ variable "cloudtrail_bucket_name" {
   type        = string
   description = "Name of the S3 bucket where CloudTrail logs are sent, required for CIS 2.6 compliance (S3 bucket access logging on the CloudTrail bucket)."
 }
+
+variable "skip_on_ct_managed_account" {
+  type        = bool
+  default     = true
+  description = "When true, fail fast if a CT-managed configuration recorder (aws-controltower-BaselineConfigRecorder) is already present in this account. The CIS-1.2 submodule declares its own aws_config_configuration_recorder, which cannot coexist with CT's recorder - apply would collide on re-provision. Set to false only if you have manually removed the CT recorder and understand the implications."
+}
