@@ -1,5 +1,5 @@
 output "event_rule_arn" {
-  description = "ARN of the CT-lifecycle EventBridge rule."
+  description = "ARN of the EventBridge rule that matches all CT lifecycle events (CreateManagedAccount, UpdateManagedAccount, RegisterOrganizationalUnit). The target embeds the full event as client_payload; the consumer workflow branches on detail.eventName."
   value       = try(aws_cloudwatch_event_rule.ct_lifecycle[0].arn, null)
 }
 

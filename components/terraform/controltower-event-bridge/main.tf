@@ -12,35 +12,37 @@ locals {
   # GitHub dispatch endpoint — one repo, one URL.
   github_dispatch_url = "https://api.github.com/repos/${var.github_org}/${var.github_repo}/dispatches"
 
-  # CT event patterns we forward. Matches aws.controltower service events
-  # that carry account-lifecycle semantics.
-  event_pattern = jsonencode({
-    source = ["aws.controltower"]
-    detail-type = [
-      "AWS Service Event via CloudTrail",
-    ]
-    detail = {
-      eventSource = ["controltower.amazonaws.com"]
-      eventName = [
-        "CreateManagedAccount",
-        "UpdateManagedAccount",
-        "RegisterOrganizationalUnit",
-      ]
-    }
-  })
+  # CT lifecycle event names we fan out. The three events have heterogeneous
+  # serviceEventDetails shapes (createManagedAccountStatus,
+  # updateManagedAccountStatus, registerOrganizationalUnitStatus), so a single
+  # input_transformer cannot bind typed fields across all three. We pass the
+  # full raw event as client_payload via the reserved <aws.events.event>
+  # placeholder and let the GHA workflow branch on detail.eventName.
+  ct_event_names = [
+    "CreateManagedAccount",
+    "UpdateManagedAccount",
+    "RegisterOrganizationalUnit",
+  ]
 }
 
 # ---------------------------------------------------------------------------
-# EventBridge rule on CT management default bus
+# EventBridge rules on CT management default bus
 # ---------------------------------------------------------------------------
 
 resource "aws_cloudwatch_event_rule" "ct_lifecycle" {
   count = local.enabled ? 1 : 0
 
   name           = "${module.this.id}-ct-lifecycle"
-  description    = "Forwards Control Tower lifecycle events to the GitHub repository_dispatch endpoint for the atmos-aft workflow."
+  description    = "Forwards Control Tower lifecycle events (CreateManagedAccount, UpdateManagedAccount, RegisterOrganizationalUnit) to the GitHub repository_dispatch endpoint as event_type=ct-lifecycle."
   event_bus_name = "default"
-  event_pattern  = local.event_pattern
+  event_pattern = jsonencode({
+    source      = ["aws.controltower"]
+    detail-type = ["AWS Service Event via CloudTrail"]
+    detail = {
+      eventSource = ["controltower.amazonaws.com"]
+      eventName   = local.ct_event_names
+    }
+  })
 
   tags = module.this.tags
 }
@@ -53,30 +55,16 @@ resource "aws_cloudwatch_event_target" "github_dispatch" {
   role_arn       = aws_iam_role.eventbridge_invoke[0].arn
   event_bus_name = "default"
 
-  # Map the CT event body into the GitHub dispatch payload.
-  # Event types are dynamic per CT event name, handled by the downstream workflow.
+  # The <aws.events.event> placeholder expands to the full raw CT event JSON.
+  # We embed it verbatim as client_payload; the consumer workflow branches on
+  # detail.eventName and walks the per-event serviceEventDetails path. This
+  # keeps terraform agnostic to CT event shape — new CT lifecycle events can
+  # be added to local.ct_event_names without changing any input_paths.
   input_transformer {
-    input_paths = {
-      event_id               = "$.id"
-      event_name             = "$.detail.eventName"
-      account_id             = "$.detail.serviceEventDetails.createManagedAccountStatus.account.accountId"
-      account_email          = "$.detail.serviceEventDetails.createManagedAccountStatus.account.accountEmail"
-      ou_name                = "$.detail.serviceEventDetails.createManagedAccountStatus.organizationalUnit.organizationalUnitName"
-      ou_id                  = "$.detail.serviceEventDetails.createManagedAccountStatus.organizationalUnit.organizationalUnitId"
-      provisioned_product_id = "$.detail.serviceEventDetails.createManagedAccountStatus.provisionedProductId"
-    }
     input_template = <<-EOT
       {
-        "event_type": "ct-<event_name>",
-        "client_payload": {
-          "event_id": <event_id>,
-          "event_name": <event_name>,
-          "account_id": <account_id>,
-          "account_email": <account_email>,
-          "ou_name": <ou_name>,
-          "ou_id": <ou_id>,
-          "provisioned_product_id": <provisioned_product_id>
-        }
+        "event_type": "ct-lifecycle",
+        "client_payload": <aws.events.event>
       }
     EOT
   }
@@ -110,6 +98,12 @@ resource "aws_cloudwatch_event_connection" "github" {
       key   = "Authorization"
       value = "Bearer ${data.aws_secretsmanager_secret_version.connection_token[0].secret_string}"
     }
+  }
+
+  # The api_key.value is sourced from Secrets Manager and rewritten by the
+  # rotator Lambda every ~30 min. Ignore downstream drift so plan stays clean.
+  lifecycle {
+    ignore_changes = [auth_parameters]
   }
 }
 
