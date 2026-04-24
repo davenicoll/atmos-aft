@@ -21,7 +21,7 @@ func TestSmokeAtmosBinary(t *testing.T) {
 
 	out, err := exec.Command("atmos", "version").CombinedOutput()
 	require.NoError(t, err, "atmos version: %s", string(out))
-	assert.True(t, strings.Contains(string(out), "atmos"), "version output mentions atmos: %s", string(out))
+	assert.True(t, strings.Contains(string(out), "Atmos "), "version output mentions 'Atmos ': %s", string(out))
 }
 
 // TestSmokeAtmosValidate exercises the `atmos validate stacks` path. Depends on

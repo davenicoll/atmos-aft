@@ -35,7 +35,7 @@ tests/
 │   ├── README.md
 │   └── events/                      # per-workflow event fixtures
 ├── opa/
-│   ├── fixtures/                    # JSON fixtures for policy tests
+│   ├── fixtures/                    # reserved for external JSON fixtures (currently empty; fixtures are inline in _test.rego via `with input as {...}`)
 │   ├── forbidden_components_test.rego
 │   ├── guardduty_phase_ordering_test.rego
 │   ├── naming_test.rego

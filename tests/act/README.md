@@ -17,7 +17,7 @@ make test-act
 # Run a single entry workflow with a synthetic event fixture:
 act pull_request \
   -W .github/workflows/pr.yaml \
-  -e tests/act/events/pull_request.json
+  -e tests/act/events/pr.json
 ```
 
 ## Event fixtures

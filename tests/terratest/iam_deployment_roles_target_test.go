@@ -1,6 +1,7 @@
 package terratest_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -49,5 +50,6 @@ func TestIAMDeploymentRolesTarget_UserIDMatch(t *testing.T) {
 func TestIAMDeploymentRolesTarget_ProviderAlias(t *testing.T) {
 	t.Parallel()
 	providers := readComponent(t, "iam-deployment-roles/target", "providers.tf")
-	assert.Contains(t, providers, `alias  = "target"`, "aws.target alias must be declared")
+	matched, _ := regexp.MatchString(`alias\s*=\s*"target"`, providers)
+	assert.True(t, matched, "expected alias = \"target\"")
 }

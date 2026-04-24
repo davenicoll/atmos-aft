@@ -2,8 +2,10 @@
 package helpers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -22,8 +24,10 @@ func RepoRoot(t *testing.T) string {
 	require.True(t, ok, "cannot determine caller")
 	dir := filepath.Dir(file)
 	for i := 0; i < 10; i++ {
-		if _, err := exec.Command("test", "-f", filepath.Join(dir, "atmos.yaml")).CombinedOutput(); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "atmos.yaml")); err == nil {
 			return dir
+		} else if !os.IsNotExist(err) {
+			require.NoError(t, err, "stat atmos.yaml in %s", dir)
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -44,6 +48,12 @@ func DescribeComponent(t *testing.T, component, stack string) map[string]any {
 	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "atmos describe component failed: %s", string(out))
+	// atmos describe component may prepend progress lines before the JSON
+	// payload; skip to the first '{' so json.Unmarshal doesn't choke on
+	// them. CI does the equivalent for conftest via sed.
+	if jsonStart := bytes.IndexByte(out, '{'); jsonStart > 0 {
+		out = out[jsonStart:]
+	}
 	var parsed map[string]any
 	require.NoError(t, json.Unmarshal(out, &parsed), "unmarshal atmos output")
 	return parsed
