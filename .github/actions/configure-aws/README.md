@@ -30,12 +30,12 @@ Bootstrap identity for a newly vended account (jobs 3 and 4 of
 
 | Name | Required | Default | Description |
 |---|---|---|---|
-| `mode` | no | `$AFT_AUTH_MODE`, then `oidc` | Auth mode: `oidc` or `access_key`. |
-| `central_role_arn` | yes | — | ARN of `AtmosCentralDeploymentRole`. |
-| `target_role_arn` | no | — | Informational only; the central → target hop runs inside Atmos. |
+| `mode` | no | `$AFT_AUTH_MODE`, then `oidc` | Auth mode: `oidc` or `access_key`. Validated: only those two values accepted. |
+| `central_role_arn` | yes | — | ARN of `AtmosCentralDeploymentRole`. Validated against `^arn:aws:iam::[0-9]{12}:role/.+`. |
+| `target_role_arn` | no | — | When non-empty, exported as `TF_VAR_target_role_arn` so each component's provider `dynamic "assume_role"` block resolves to this role. Leave empty for components that stay in the central account. |
 | `region` | yes | — | AWS region. |
-| `role_session_name` | no | `atmos-<workflow>-<run_id>` | STS role session name. |
-| `identity` | no | `default` | Atmos auth identity: `default` or `bootstrap`. |
+| `role_session_name` | no | `atmos-<workflow>-<run_id>` (truncated to 64 chars) | STS role session name. Auto-truncated to the STS 64-char limit. |
+| `identity` | no | `default` | Atmos auth identity: `default` (central → `AtmosDeploymentRole`) or `bootstrap` (central → `AWSControlTowerExecution`/`OrganizationAccountAccessRole`). Validated: only those two values accepted. |
 
 ## Outputs
 
@@ -43,6 +43,13 @@ Bootstrap identity for a newly vended account (jobs 3 and 4 of
 |---|---|
 | `account_id` | Account ID reported by `sts:GetCallerIdentity`. |
 | `mode` | Resolved auth mode. |
+
+## Validation
+
+The action fails fast with a clear error when:
+- `identity` is not `default` or `bootstrap`.
+- `mode` is not `oidc` or `access_key`.
+- `central_role_arn` does not match the standard IAM role ARN shape.
 
 ## Access-key mode
 

@@ -30,7 +30,7 @@ jobs:
       atmos_version: ${{ steps.setup.outputs.atmos_version }}
       terraform_version: ${{ steps.setup.outputs.terraform_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
         with:
           fetch-depth: 0
       - id: setup
@@ -43,7 +43,7 @@ jobs:
     environment: pr
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-atmos
@@ -62,7 +62,7 @@ jobs:
     environment: pr
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-atmos
@@ -107,7 +107,7 @@ jobs:
       matrix: ${{ steps.affected.outputs.matrix }}
       has_affected: ${{ steps.affected.outputs.has_affected }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-atmos
@@ -157,7 +157,7 @@ jobs:
     environment: pr
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/post-plan-summary
         with:
           component: aggregate

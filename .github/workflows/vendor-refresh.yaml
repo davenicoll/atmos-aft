@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - name: atmos vendor pull
         shell: bash
@@ -36,7 +36,7 @@ jobs:
           fi
       - name: open PR
         if: steps.diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
         with:
           token: ${{ secrets.WORKFLOW_DISPATCH_PAT || secrets.GITHUB_TOKEN }}
           commit-message: "chore(vendor): refresh vendored components"

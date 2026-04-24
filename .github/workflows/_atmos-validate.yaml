@@ -26,7 +26,7 @@ jobs:
     outputs:
       opa_violations: ${{ steps.opa.outputs.violations }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - uses: ./.github/actions/install-gha-cli-deps
       - name: atmos validate stacks

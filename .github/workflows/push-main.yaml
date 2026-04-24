@@ -27,7 +27,7 @@ jobs:
     outputs:
       affected_json: ${{ steps.a.outputs.affected_json }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-atmos
@@ -58,7 +58,7 @@ jobs:
       destroyed_stacks: ${{ steps.r.outputs.destroyed_stacks }}
       has_customizations: ${{ steps.r.outputs.has_customizations }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - id: r
         shell: bash
         env:
@@ -80,7 +80,7 @@ jobs:
       matrix:
         stack: ${{ fromJSON(needs.route.outputs.new_stacks) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - name: gh workflow run provision-account
         shell: bash
         env:
@@ -99,7 +99,7 @@ jobs:
     environment: aft-mgmt
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - shell: bash
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_DISPATCH_PAT || secrets.GITHUB_TOKEN }}
@@ -120,7 +120,7 @@ jobs:
       matrix:
         stack: ${{ fromJSON(needs.route.outputs.destroyed_stacks) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - shell: bash
         env:
           GH_TOKEN: ${{ secrets.WORKFLOW_DISPATCH_PAT || secrets.GITHUB_TOKEN }}

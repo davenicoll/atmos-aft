@@ -41,22 +41,35 @@ jobs:
       AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
         with:
           ref: ${{ inputs.customizations_source_ref }}
       - uses: ./.github/actions/setup-atmos
+      # Resolve stack context first so we can look up the customization-name by
+      # account_id (per atmos.yaml: /aft/account/<account_id>/...), not by stack.
+      # We pass a placeholder component here and re-resolve below once the name
+      # is known.
+      - id: ctx-pre
+        uses: ./.github/actions/resolve-stack
+        with:
+          stack: ${{ matrix.stack }}
+          component: customizations/default
       - id: resolve-name
         shell: bash
         env:
           STACK: ${{ matrix.stack }}
           CNAME: ${{ inputs.customization_name }}
+          ACCOUNT_ID: ${{ steps.ctx-pre.outputs.account_id }}
         run: |
           set -euo pipefail
           if [[ -n "$CNAME" ]]; then
             echo "name=$CNAME" >> "$GITHUB_OUTPUT"
+          elif [[ -z "$ACCOUNT_ID" ]]; then
+            # Central-only (no target account) stacks have no customization param.
+            echo "name=default" >> "$GITHUB_OUTPUT"
           else
             region="$(aws configure get region || echo us-east-1)"
-            name="$(aws ssm get-parameter --region "$region" --name "/aft/account/${STACK}/customization-name" --query 'Parameter.Value' --output text 2>/dev/null || echo default)"
+            name="$(aws ssm get-parameter --region "$region" --name "/aft/account/${ACCOUNT_ID}/customization-name" --query 'Parameter.Value' --output text 2>/dev/null || echo default)"
             echo "name=$name" >> "$GITHUB_OUTPUT"
           fi
       - id: ctx

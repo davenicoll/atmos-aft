@@ -35,6 +35,10 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: atmos-destroy-${{ inputs.stack }}-${{ inputs.component }}
+  cancel-in-progress: false
+
 jobs:
   destroy:
     runs-on: ubuntu-latest
@@ -51,7 +55,7 @@ jobs:
         run: |
           echo "::error::_atmos-destroy.yaml requires confirm=true"
           exit 1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - id: ctx
         uses: ./.github/actions/resolve-stack

@@ -72,7 +72,7 @@ jobs:
       AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - id: ctx
         uses: ./.github/actions/resolve-stack
@@ -125,7 +125,7 @@ jobs:
             echo "planfile_key=artifact:plan-${COMPONENT//\//-}-${STACK}" >> "$GITHUB_OUTPUT"
           fi
       - if: inputs.upload_planfile && inputs.plan_store == 'artifact'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: plan-${{ inputs.component }}-${{ inputs.stack }}
           path: ${{ steps.plan.outputs.plan_out }}

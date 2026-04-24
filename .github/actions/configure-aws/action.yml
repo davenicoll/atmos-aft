@@ -61,6 +61,7 @@ runs:
         GH_WORKFLOW: ${{ github.workflow }}
         GH_RUN_ID: ${{ github.run_id }}
         IDENTITY: ${{ inputs.identity }}
+        CENTRAL_ROLE_ARN: ${{ inputs.central_role_arn }}
       run: |
         set -euo pipefail
         if [[ "$IDENTITY" != "default" && "$IDENTITY" != "bootstrap" ]]; then
@@ -72,14 +73,21 @@ runs:
           echo "::error::mode must be 'oidc' or 'access_key' (got '$mode')"
           exit 1
         fi
+        # Validate central_role_arn matches the expected IAM role ARN shape.
+        if ! [[ "$CENTRAL_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/.+ ]]; then
+          echo "::error::central_role_arn must match '^arn:aws:iam::<12-digit-account>:role/<name>$' (got '$CENTRAL_ROLE_ARN')"
+          exit 1
+        fi
         slug="${GH_WORKFLOW// /-}"
+        # Session name is capped by STS at 64 chars; truncate deterministically.
         session="${INPUT_SESSION:-atmos-${slug}-${GH_RUN_ID}}"
+        session="$(printf '%s' "$session" | cut -c1-64)"
         echo "mode=$mode" >> "$GITHUB_OUTPUT"
         echo "session=$session" >> "$GITHUB_OUTPUT"
 
     - name: Configure AWS credentials (OIDC)
       if: steps.resolve-mode.outputs.mode == 'oidc'
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.0.2
       with:
         role-to-assume: ${{ inputs.central_role_arn }}
         role-session-name: ${{ steps.resolve-mode.outputs.session }}
@@ -87,7 +95,7 @@ runs:
 
     - name: Configure AWS credentials (access key)
       if: steps.resolve-mode.outputs.mode == 'access_key'
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.0.2
       with:
         aws-access-key-id: ${{ env.AFT_BOOTSTRAP_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ env.AFT_BOOTSTRAP_SECRET_ACCESS_KEY }}

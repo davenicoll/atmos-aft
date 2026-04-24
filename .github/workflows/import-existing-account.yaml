@@ -25,7 +25,7 @@ jobs:
     environment: aft-mgmt
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/configure-aws
         with:
           mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
@@ -48,7 +48,7 @@ jobs:
     environment: aft-mgmt
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - uses: ./.github/actions/configure-aws
         with:
