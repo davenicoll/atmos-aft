@@ -1,42 +1,18 @@
 # Variable validation + kms_alias_name contract for the central bootstrap
-# state backend. Deep structural assertions on the module-owned bucket
-# policy and key policy aren't reachable at plan time under mock_provider
-# (the module's attributes are mocked), so focus is the user-facing
-# contract + validation.
-#
-# KNOWN LATENT SHAPE CONCERN (not blocking, documented here for tracking):
-# main.tf passes `[local.extra_bucket_statements]` to the cloudposse module's
-# `source_policy_documents` input. That input expects each element to be a
-# FULL policy document (with Version + Statement wrapper), but this
-# component renders only a statements ARRAY via jsonencode. The mocked
-# aws_iam_policy_document below masks this — remove the mock_data override
-# and the module's internal aggregated_policy parses the statements array
-# as a policy document and fails with "invalid character 'd'" (the first
-# char of "DenyInsecureTransport"). The sibling `tfstate-backend`
-# component does this correctly via data.aws_iam_policy_document.bucket_extra.
-# TODO: mirror that pattern here; until then these tests only exercise the
-# variable/contract surface.
+# state backend. The real aws provider (STS preflight skipped) lets
+# data.aws_iam_policy_document.bucket_extra compute a genuine policy JSON,
+# which the wrapped cloudposse module's internal aggregated_policy then
+# parses successfully. A mock_provider here would return random strings
+# for that .json attribute, masking the very shape-bug this was refactored
+# to fix.
 
-mock_provider "aws" {
-  mock_data "aws_partition" {
-    defaults = {
-      partition = "aws"
-    }
-  }
-  mock_data "aws_kms_alias" {
-    defaults = {
-      target_key_id  = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-      target_key_arn = "arn:aws:kms:us-east-1:123456789012:key/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-    }
-  }
-  # The wrapped cloudposse/tfstate-backend module internally merges policy
-  # documents via aws_iam_policy_document.aggregated_policy; without a valid
-  # mocked json that source fails with a JSON-parse error.
-  mock_data "aws_iam_policy_document" {
-    defaults = {
-      json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"
-    }
-  }
+provider "aws" {
+  region                      = "us-east-1"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  access_key                  = "test"
+  secret_key                  = "test"
 }
 
 variables {
@@ -53,6 +29,35 @@ run "kms_alias_output_is_bootstrap" {
   assert {
     condition     = output.kms_alias_name == "alias/atmos-tfstate-bootstrap"
     error_message = "Central bootstrap component must expose the canonical alias/atmos-tfstate-bootstrap name."
+  }
+}
+
+run "bucket_extra_is_a_valid_policy_document" {
+  command = plan
+
+  # Regression guard: the component used to jsonencode a bare statements
+  # ARRAY and pass it to source_policy_documents, which fails the module's
+  # internal aggregated_policy JSON validation. Now we produce a full IAM
+  # policy document via data.aws_iam_policy_document. Verify the shape.
+  assert {
+    condition = can(
+      regex("\"Version\"\\s*:\\s*\"2012-10-17\"", data.aws_iam_policy_document.bucket_extra[0].json)
+    )
+    error_message = "bucket_extra must render a full IAM policy document (Version + Statement), not a bare statements array."
+  }
+
+  assert {
+    condition = can(
+      regex("DenyInsecureTransport", data.aws_iam_policy_document.bucket_extra[0].json)
+    )
+    error_message = "bucket_extra must contain the DenyInsecureTransport statement."
+  }
+
+  assert {
+    condition = can(
+      regex("AllowReadAllStateRoleRead", data.aws_iam_policy_document.bucket_extra[0].json)
+    )
+    error_message = "bucket_extra must contain the AllowReadAllStateRoleRead statement."
   }
 }
 
