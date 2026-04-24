@@ -20,4 +20,3 @@ components:
     security-hub:
       vars:
         finding_aggregator_enabled: true
-        set_delegated_admin_account_id: true

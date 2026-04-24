@@ -1,3 +1,2 @@
 vars:
   tenant: core
-  namespace: acme
