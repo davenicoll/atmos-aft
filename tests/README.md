@@ -8,10 +8,10 @@ workflow-syntax smoke, and `terratest` is opt-in per PR (default on main).
 
 | Tier | Scope | Runtime | Blocking on PR |
 |---|---|---|---|
-| **static** | `atmos validate stacks` + `atmos describe stacks` + `terraform fmt -check` + per-component `terraform validate` + `tflint` | ~2–5 min | yes |
+| **static** | `atmos validate stacks` + `atmos describe stacks` + `terraform fmt -check` + per-component `terraform validate` + `tflint` + per-component `terraform test` (any `components/terraform/*/tests/*.tftest.hcl`) | ~3–6 min | yes |
 | **opa** | Rego unit tests (`opa test`) + `conftest test` against the fleet's resolved stacks | <1 min | yes |
 | **act** | `act --list` + `act --dryrun` for each entry workflow (matrix); fixture-driven | ~1–3 min | yes |
-| **terratest** | `go test ./...` under `tests/terratest/`; build-tagged for live-AWS suites | 15–60 min | opt-in |
+| **terratest** | `go test ./...` under `tests/terratest/`; build-tagged for live-AWS suites. Legacy — prefer `terraform test` (`.tftest.hcl`) for new coverage | 15–60 min | opt-in |
 
 All tiers orchestrated by `.github/workflows/ci-tests.yaml`.
 
@@ -93,9 +93,59 @@ Without the tag, the file is excluded at compile time — the default
 | You added… | …write a test under | Example |
 |---|---|---|
 | A Rego policy | `tests/opa/<policy>_test.rego` | `forbidden_components_test.rego` |
-| A Terraform component | `tests/terratest/<component>_test.go` | uses `helpers.DescribeComponent` |
+| A Terraform component | `components/terraform/<name>/tests/*.tftest.hcl` (preferred) | `aws-config-rules/tests/skip_flag.tftest.hcl` |
+| A component behaviour needing live AWS | `tests/terratest/<component>_test.go` with `//go:build e2e` | `target_role_chain_live_test.go` |
 | An entry workflow | `tests/act/events/<workflow-name>.json` | synthetic GitHub webhook payload |
 | A composite action | inside a test workflow in `tests/act/` | wire via `act` matrix |
+
+## Writing `.tftest.hcl` for a component
+
+Native `terraform test` (plan-only) is the preferred unit-test harness.
+Co-located with the component, no Go toolchain, no AWS credentials.
+
+```hcl
+# components/terraform/<name>/tests/<topic>.tftest.hcl
+
+# Option A — pure mock (works when no aws_iam_policy_document or other
+# compute-only data source is under assertion):
+mock_provider "aws" {
+  mock_data "aws_region" {
+    defaults = { name = "us-east-1", region = "us-east-1" }
+  }
+}
+
+# Option B — real provider with STS preflight skipped (required when your
+# assertions read data.aws_iam_policy_document.json or similar):
+# provider "aws" {
+#   region                      = "us-east-1"
+#   skip_credentials_validation = true
+#   skip_metadata_api_check     = true
+#   skip_requesting_account_id  = true
+#   access_key                  = "test"
+#   secret_key                  = "test"
+# }
+
+variables {
+  region    = "us-east-1"
+  namespace = "test"
+  stage     = "test"
+  name      = "<component-name>"
+  # ...required inputs
+}
+
+run "descriptive_case_name" {
+  command = plan
+
+  variables { /* per-case overrides */ }
+
+  assert {
+    condition     = <expression against plan state>
+    error_message = "<what the test is guarding against>"
+  }
+}
+```
+
+Run locally: `cd components/terraform/<name> && terraform init -backend=false && terraform test`. Or across all components: `make tf-test`.
 
 ## CI workflow inputs
 
