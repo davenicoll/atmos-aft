@@ -94,8 +94,10 @@ If (a) appears, the minimum split is two repos: `atmos-aft-core` (this one) and 
     publish-status/                          # composite: write SSM /aft/account/<n>/status
     post-plan-summary/                       # composite: GITHUB_STEP_SUMMARY + PR comment
   policies/
-    forbidden-components.rego                # aws-organization, aws-organizational-unit, aws-account
-    ct-coexistence.rego                      # aws-config flags, guardduty phase order
+    forbidden_components.rego                # aws-organization, aws-organizational-unit, aws-account
+    guardduty_phase_ordering.rego            # phase 3 gated on phase 2 audit-stack instance
+    naming.rego                              # stack/component naming discipline
+    required_ct_flags.rego                   # aws-config recorder-off, GuardDuty CT-compat
   CODEOWNERS
 ```
 
@@ -1076,7 +1078,7 @@ permissions:
 - IAM: EventBridge role gets `sqs:SendMessage` on DLQ ARN only
 - Replay via a single-loop runbook operation (`aws events put-events` per DLQ message, or an operator-triggered Lambda if replay becomes frequent)
 
-Rationale (aws-architect, `review.md` §6 decisions log): S3 archive was rejected because building replay tooling is a new burden; SQS DLQ gives 14-day cover with single-loop replay semantics that Ops already know from other API-destination integrations.
+Rationale (aws-architect, [`archive/review.md`](archive/review.md) §6 decisions log): S3 archive was rejected because building replay tooling is a new burden; SQS DLQ gives 14-day cover with single-loop replay semantics that Ops already know from other API-destination integrations.
 
 ---
 
@@ -1306,7 +1308,7 @@ phase-3-member-settings    ->  matrix of _atmos-apply.yaml over target_stacks
 
 **Error recovery.** If phase 2 fails after phase 1 succeeded, the partial state is: delegated-admin registered but org config not applied. Re-running the workflow from scratch is safe — phase 1 is idempotent and phase 2 picks up where it left off. If phase 1 itself fails mid-apply (rare; single API call), state drift is recoverable via `terraform taint` on `aws_<service>_organization_admin_account` and re-running.
 
-**Empirical tuning (post-launch).** Default `propagation_wait_seconds=30` is sized against typical IAM propagation latency; `list-organization-admin-accounts` can occasionally return "present" before the audit-account SLR is fully usable cross-account (aws-architect review, `review.md` §6 decisions log). The AWS Terraform provider's built-in service-API retries absorb this, and phase 2 is idempotent on re-run. Mitigation if ops dashboards show repeated phase-2 retries: bump `propagation_wait_seconds` default to 60–90 via the workflow input. No design change required; this is an empirical tunable, like the `max-parallel` values in §8.3.
+**Empirical tuning (post-launch).** Default `propagation_wait_seconds=30` is sized against typical IAM propagation latency; `list-organization-admin-accounts` can occasionally return "present" before the audit-account SLR is fully usable cross-account (aws-architect review, [`archive/review.md`](archive/review.md) §6 decisions log). The AWS Terraform provider's built-in service-API retries absorb this, and phase 2 is idempotent on re-run. Mitigation if ops dashboards show repeated phase-2 retries: bump `propagation_wait_seconds` default to 60–90 via the workflow input. No design change required; this is an empirical tunable, like the `max-parallel` values in §8.3.
 
 ---
 
@@ -1622,7 +1624,7 @@ CODEOWNERS enforces that `.github/workflows/reusable/_*.yaml` and `.github/polic
 
 | Secret | Rotation cadence | Procedure |
 |---|---|---|
-| `AFT_BOOTSTRAP_ACCESS_KEY_ID` | After bootstrap complete; then quarterly if retained | Run `scripts/rotate-bootstrap-key.sh`; update environment secret. |
+| `AFT_BOOTSTRAP_ACCESS_KEY_ID` | After bootstrap complete; then quarterly if retained | `aws iam create-access-key` for the bootstrap user, update the `AFT_BOOTSTRAP_ACCESS_KEY_ID` / `AFT_BOOTSTRAP_SECRET_ACCESS_KEY` repo secrets, then `aws iam delete-access-key` on the previous key. A helper script is not yet shipped. |
 | `TERRAFORM_CLOUD_TOKEN` | 90 days | HCP UI + update environment secret. |
 | `atmos-aft/ct-dispatch/github-app-private-key` (mode A) | Annual | GitHub App settings → regenerate key → write to Secrets Manager. Rotator Lambda picks up the new key on next invocation (no EventBridge downtime). |
 | `atmos-aft/ct-dispatch/github-installation-token` (mode A) | Automatic every 30 min by rotator Lambda | No operator action. Two CloudWatch alarms: rotator error-count > 0, and `github-installation-token` `LastChangedDate` age > 35 min (either triggers SNS to platform-ops). |

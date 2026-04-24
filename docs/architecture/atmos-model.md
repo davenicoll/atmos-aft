@@ -330,7 +330,7 @@ Atmos regenerates `backend.tf.json` on each run; **do not commit it**.
 
 ### 9.3 State backend topology — decided
 
-Resolves `review.md` Blocker 3. `§9.2` above is the Atmos-mechanics primer; this subsection is the concrete topology the factory ships. Terms: *account state* = state for every component applied inside a vended/managed account. *Bootstrap state* = the one-per-account `tfstate-backend` component's own state.
+Resolves [`archive/review.md`](archive/review.md) Blocker 3 (archived Phase 1 review). `§9.2` above is the Atmos-mechanics primer; this subsection is the concrete topology the factory ships. Terms: *account state* = state for every component applied inside a vended/managed account. *Bootstrap state* = the one-per-account `tfstate-backend` component's own state.
 
 **Decision.** Per-account primary backend for everything except `tfstate-backend` itself; **central bootstrap backend** in aft-mgmt for `tfstate-backend`'s state. S3-only, native S3 locking (`use_lockfile: true`, no DDB). Single-region per account; no cross-region replication.
 

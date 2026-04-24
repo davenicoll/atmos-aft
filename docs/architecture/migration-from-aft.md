@@ -75,7 +75,7 @@ atmos-aft keeps the `/aft/` namespace but owns a different subset of keys. Note 
 
 ### 2.4 Inventory of AFT inputs
 
-Pull the values currently passed to the AFT module. Compare against the 52-input table in [`docs/architecture/aft-readme-baseline.md`](aft-readme-baseline.md) §3 to identify:
+Pull the values currently passed to the AFT module. Compare against the 52-input table in [`docs/architecture/aft-readme-baseline.md`](aft-readme-baseline.md) §3 (full upstream surface) and the authoritative dropped-inputs list in [`README.md` §5.4](../../README.md#54-inputs-dropped-from-upstream-aft) to identify:
 
 - Inputs that are dropped in atmos-aft (e.g. all `aft_vpc_*`, `aft_codebuild_compute_type`, `backup_recovery_point_retention`). Note these for operator sign-off before cut-over.
 - Inputs that move to a GitHub repo variable (e.g. `ct_management_account_id`, `log_archive_account_id`).
@@ -194,15 +194,7 @@ Open a PR — `pr.yaml` runs `atmos terraform plan` read-only. **Expected diff a
 
 ### 4.3 Generate the import commands
 
-```bash
-scripts/import-existing-accounts.sh <account-id>
-```
-
-The script queries Service Catalog for the provisioned-product ID, queries Organizations for the account's OU, queries IAM for existing role ARNs, and prints a sequence of `terraform import` commands covering:
-
-- `aws_servicecatalog_provisioned_product.this` (the account itself).
-- `aws_iam_role.atmos_deployment_role` in the target account (if AFT created one with the same name — unlikely, but possible).
-- Anything else the per-component import hook declares.
+Look up the provisioned-product ID manually (`aws servicecatalog search-provisioned-products --filters SearchQuery="name:<account-name>"`) and feed it to the import workflow (§4.4). A helper script to generate `terraform import` lines for the full component set is planned but not yet shipped; today `import-existing-account.yaml` handles the `aws_servicecatalog_provisioned_product.this` resource and operators run any remaining imports by hand.
 
 ### 4.4 Run the import workflow
 
@@ -281,6 +273,8 @@ Before moving to the next account:
 ## 5. Customization migration
 
 Customization code ports 1:1. The AFT-specific glue does not.
+
+> **NOT YET IMPLEMENTED.** `components/terraform/customizations/` is planned but not present in the current tree (see README §9.1). The procedure below describes the target shape; until the layer ships, teams porting customizations should either stage the content in a fork branch or defer the migration step.
 
 ### 5.1 Global customizations
 

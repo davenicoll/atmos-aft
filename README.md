@@ -50,7 +50,7 @@ A GitOps account factory for AWS Control Tower environments. An account request 
 
 ### CT coexistence contract
 
-Control Tower owns the Organization, OUs, baseline guardrail SCPs, the org-level CloudTrail, and Identity Center bootstrap. atmos-aft never touches those. atmos-aft adds everything CT doesn't: custom SCPs, per-member security-service configuration, per-account baselines, customizations, feature options. See [`docs/architecture/review.md`](docs/architecture/review.md) for the full CT-ownership matrix.
+Control Tower owns the Organization, OUs, baseline guardrail SCPs, the org-level CloudTrail, and Identity Center bootstrap. atmos-aft never touches those. atmos-aft adds everything CT doesn't: custom SCPs, per-member security-service configuration, per-account baselines, customizations, feature options. See [`docs/architecture/mapping.md`](docs/architecture/mapping.md) for the AFT-artefact mapping and [§12.3 CT coexistence guarantees](#123-ct-coexistence-guarantees) for the enforced boundaries.
 
 ---
 
@@ -69,12 +69,15 @@ Three design docs are the source of truth; this section is a pointer.
 
 | Doc | Scope |
 |-----|-------|
-| [`docs/architecture/aft-analysis.md`](docs/architecture/aft-analysis.md) | What upstream AFT does, module by module. Ground truth for parity. |
-| [`docs/architecture/atmos-model.md`](docs/architecture/atmos-model.md) | Atmos concepts and the proposed repo layout. |
+| [`docs/architecture/atmos-model.md`](docs/architecture/atmos-model.md) | Atmos concepts and the repo layout. |
 | [`docs/architecture/mapping.md`](docs/architecture/mapping.md) | AFT artefact → atmos-aft replacement, one row per upstream module/SFN/Lambda/DDB-table. |
-| [`docs/architecture/gha-design.md`](docs/architecture/gha-design.md) | GitHub Actions workflow topology (9 reusable + 11 entry-point workflows, 6 composite actions). |
+| [`docs/architecture/gha-design.md`](docs/architecture/gha-design.md) | GitHub Actions workflow topology (11 reusable + 13 entry-point workflows, 6 composite actions). |
 | [`docs/architecture/module-inventory.md`](docs/architecture/module-inventory.md) | Every component, its backing Cloudposse module (or "custom"), and target account. |
-| [`docs/architecture/review.md`](docs/architecture/review.md) | aws-architect phase-1 review with the resolved blockers. |
+| [`docs/architecture/aft-analysis.md`](docs/architecture/aft-analysis.md) | What upstream AFT does, module by module. Ground truth for parity. |
+| [`docs/architecture/troubleshooting.md`](docs/architecture/troubleshooting.md) | Failure-mode catalogue, diagnostic commands, ordered remediations. |
+| [`docs/architecture/migration-from-aft.md`](docs/architecture/migration-from-aft.md) | Migration playbook from upstream AFT (audit, import, decommission). |
+
+Historical review snapshots (for decision-log traceability only) are collected under [`docs/architecture/archive/`](docs/architecture/archive/).
 
 ### High-level flow (account creation)
 
@@ -234,7 +237,7 @@ vars:
     delete_default_vpcs_enabled: true
     enterprise_support: false
     cloudtrail_data_events: false
-  # Optional: selects components/terraform/customizations/<name>/ for job 10.
+  # Reserved for the planned per-account customization layer (§9.1); not yet consumed.
   # account_customizations_name: standard-web
 ```
 
@@ -288,7 +291,7 @@ The common vars — these mirror AFT's `control_tower_parameters` plus atmos-aft
 | `sso_user_first_name` | string | no | derived | |
 | `sso_user_last_name` | string | no | derived | |
 | `account_tags` | map(string) | no | `{}` | Applied via Organizations tag-resource. |
-| `account_customizations_name` | string | no | `null` | Selects `components/terraform/customizations/<name>/` for step 10. Null means global-only. |
+| `account_customizations_name` | string | no | `null` | Reserved for the planned per-account customization layer (§9.1). Currently accepted but not consumed. |
 | `change_management_parameters` | map(any) | no | `null` | Opaque; surfaced to the custom-provisioning hook. |
 | `custom_fields` | map(any) | no | `null` | Opaque; surfaced to global + account customizations via `!store`. |
 | `feature_options` | object | no | see below | |
@@ -328,7 +331,7 @@ Intentional cuts; these have no analogue in atmos-aft:
 | `tf_backend_secondary_region` | Not applicable — atmos-aft is single-region; see [`atmos-model.md` §9.3.4](docs/architecture/atmos-model.md#934-dr--dual-region--deferred). State replication is a per-account bucket opt-in, not a global toggle. |
 | `cloudwatch_log_group_enable_cmk_encryption`, `sns_topic_enable_cmk_encryption` | Uniformly CMK-encrypted. No AWS-managed-key fallback. |
 
-Per-input parity is audited in [`docs/architecture/readme-audit.md`](docs/architecture/readme-audit.md).
+Per-input parity was audited in [`docs/architecture/archive/readme-audit.md`](docs/architecture/archive/readme-audit.md) at Phase 2 sign-off (archived).
 
 ---
 
@@ -398,8 +401,8 @@ atmos-aft/
 │   ├── identity-center-permission-sets/ identity-center-assignments/
 │   ├── github-oidc-provider/            # Custom
 │   ├── centralized-logging-bucket/ cloudwatch-log-groups/ vpc-flow-logs-bucket/
-│   ├── dns-primary/ dns-delegated/ ipam/
-│   └── customizations/<name>/           # Per-account customization modules (operator-owned)
+│   └── dns-primary/ dns-delegated/ ipam/
+│   # NB: customizations/<name>/ is planned (see §9.1), not present yet.
 ├── stacks/
 │   ├── catalog/
 │   │   ├── account-classes/{vended,aft-mgmt,ct-mgmt,audit,log-archive}.yaml
@@ -416,11 +419,12 @@ atmos-aft/
 ├── vendor/                              # Populated by `atmos vendor pull`
 ├── .github/
 │   ├── actions/<name>/action.yml        # 6 composite actions
-│   ├── workflows/<name>.yml             # 11 reusable + 12 entry-point
+│   ├── workflows/<name>.yaml            # 11 reusable (prefix `_`) + 13 entry-point
 │   ├── policies/*.rego                  # OPA policies
 │   └── CODEOWNERS
 ├── scripts/
-│   └── import-existing-accounts.sh
+│   ├── bootstrap/                       # `atmos bootstrap` scaffolder + runner
+│   └── classify-affected.sh
 └── docs/architecture/                   # Design specs (source of truth)
 ```
 
@@ -464,7 +468,7 @@ Seven custom components (not backed by a Cloudposse module): `account-provisioni
 | `terraform-aws-account` | Bypasses CT guardrails | `account-provisioning` (Service Catalog wrapper) |
 | `terraform-aws-cloudtrail` (org scope) | CT owns the org trail | Permitted only for per-account supplementary trails |
 
-Enforced by `.github/policies/forbidden-components.rego` at PR time.
+Enforced by `.github/policies/forbidden_components.rego` at PR time.
 
 ---
 
@@ -491,31 +495,23 @@ Required GitHub features:
 
 ## 9. Customization layers
 
-atmos-aft preserves AFT's three-layer customization model plus one new extension point.
+atmos-aft plans to preserve AFT's three-layer customization model plus one new extension point. Today the provisioning and post-provision hooks are wired; the global / per-account customization layer is a planned addition (see §9.1).
 
-### 9.1 Global customizations
+### 9.1 Global + per-account customizations (not yet implemented)
 
-Applied to **every** AFT-managed account after baseline. Lives in `components/terraform/customizations/global/`. Applied by `_customize-global.yaml` reusable workflow. State key per account: `$VENDED_ACCOUNT_ID-aft-global-customizations/terraform.tfstate`.
+Customization hooks for per-account/global overrides are a future addition; see [`migration-from-aft.md`](docs/architecture/migration-from-aft.md). The reusable workflows `_customize-global.yaml` and `_customize-account.yaml` ship as stubs (and the `account_customizations_name` stack variable is accepted but has no backing component directory yet). `components/terraform/customizations/` is not present in the current tree.
 
-Typical contents: org-wide IAM policies, standard tags, CloudWatch log forwarder, baseline SSM documents.
-
-### 9.2 Per-account customizations
-
-Applied only when the stack's `vars.account_customizations_name` is set. Lives in `components/terraform/customizations/<name>/`. Applied by `_customize-account.yaml`. State key: `$VENDED_ACCOUNT_ID-aft-account-customizations/terraform.tfstate`.
-
-Pattern: each `<name>` is a self-contained Terraform module with its own `terraform/` and optional `api_helpers/` (pre/post shell hooks). No Cloudposse module — the content is customer IP.
-
-### 9.3 Provisioning-time customizations hook
+### 9.2 Provisioning-time customizations hook
 
 `custom-provisioning-hook.yaml` is the equivalent of AFT's customer-owned `aft-account-provisioning-customizations` Step Function. Fires after feature options and before global customizations (job 8 of `provision-account.yaml`). Defaults to no-op; operators override by editing the workflow.
 
 Typical contents: ServiceNow ticket creation, approval gate, compliance tagging, internal CMDB write.
 
-### 9.4 Post-provision hook
+### 9.3 Post-provision hook
 
 `_post-provision-hook.yaml` is the outbound signal — runs after `publish-status` and can trigger downstream systems (Slack, Jira, DataDog). Left as a no-op stub; operators wire up as needed.
 
-### 9.5 Lifecycle events from Control Tower
+### 9.4 Lifecycle events from Control Tower
 
 CT emits `CreateManagedAccount`, `UpdateManagedAccount`, and `RegisterOrganizationalUnit` events on the CT-mgmt default bus. atmos-aft routes these to a custom bus in the atmos-aft management account → API Destination → GitHub `repository_dispatch` → `ct-lifecycle-event.yaml`. Operators can hook into this workflow to react to CT-initiated changes (account moves, OU registrations) that were not triggered by a merge to this repo.
 
@@ -531,7 +527,7 @@ Summary of the migration path:
 
 1. **Audit** — inventory AFT-managed accounts, customizations, SSM parameters, inputs, and in-flight state.
 2. **Side-by-side bootstrap** — stand up atmos-aft in the same account that hosts upstream AFT (the atmos-aft management account becomes that account). Different IAM role names, separate state backends, no DDB tables. AFT keeps operating.
-3. **Account-by-account import** — for each account: author stack YAML, run `scripts/import-existing-accounts.sh`, run `import-existing-account.yaml`, verify zero-diff plan, decommission from AFT.
+3. **Account-by-account import** — for each account: author stack YAML, run [`import-existing-account.yaml`](.github/workflows/import-existing-account.yaml) (`gh workflow run import-existing-account.yaml --field stack=<s> --field servicecatalog_provisioned_product_id=<id>`), verify zero-diff plan, decommission from AFT.
 4. **Customization migration** — customer-owned Terraform ports directly. Backend Jinja files are deleted (atmos-aft renders natively). The `aft-account-provisioning-customizations` SFN is rewritten as GHA jobs.
 5. **Decommission AFT** — once the last account is migrated, destroy AFT's Terraform root module, remove the `AWSAFT*` roles, archive the AFT state bucket.
 
@@ -653,7 +649,7 @@ atmos-aft never manages:
 - CT's Config recorder or Config IAM role. `aws-config` catalog defaults hardcode `create_recorder=false` and `create_iam_role=false`.
 - CT's Identity Center instance (permission sets and assignments are layered on top).
 
-Enforced by `.github/policies/forbidden-components.rego` and catalog defaults. Violations fail `pr.yaml`.
+Enforced by `.github/policies/forbidden_components.rego` and catalog defaults. Violations fail `pr.yaml`.
 
 ### 12.4 HCP Terraform / TFC OIDC governance
 
@@ -718,7 +714,7 @@ Follow the standard GitHub PR flow. Every PR runs `pr.yaml` which:
 
 - Plans every affected instance (read-only).
 - Validates every stack with JSON Schema + OPA.
-- Enforces the forbidden-components policy.
+- Enforces the forbidden-components policy (`forbidden_components.rego`).
 - Checks that any new component has a matching `stacks/catalog/<component>/defaults.yaml`.
 
 Design changes go through `docs/architecture/` first. Implementation PRs should link to the design doc they instantiate.
