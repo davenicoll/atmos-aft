@@ -8,7 +8,15 @@ set -euo pipefail
 
 if command -v gomplate >/dev/null 2>&1; then
     # Build a datasource from ANSWERS (key=value per line) as JSON.
-    json=$(awk -F= 'BEGIN{print "{"} NR>1{printf ","} {key=$1; $1=""; sub(/^=/,""); gsub(/"/,"\\\""); printf "\"%s\":\"%s\"", key, $0} END{print "}"}' <<<"${ANSWERS}")
+    # Use jq so arbitrary characters (quotes, backslashes, `=` inside values)
+    # are encoded safely. Empty lines are skipped.
+    json=$(printf '%s' "${ANSWERS}" | jq -Rn '
+        [ inputs
+          | select(length > 0)
+          | capture("^(?<k>[^=]+)=(?<v>.*)$")
+          | {(.k): .v}
+        ] | add // {}
+    ')
     exec gomplate --context ".=stdin:?type=application/json" <<<"$json" --in "$(cat)"
 fi
 
