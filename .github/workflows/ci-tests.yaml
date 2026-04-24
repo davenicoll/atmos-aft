@@ -67,6 +67,23 @@ jobs:
             (cd "$dir" && tflint --minimum-failure-severity=warning) || exit 1
             echo "::endgroup::"
           done < <(find components/terraform -type f -name '*.tf' -not -path '*/.terraform/*' -exec dirname {} \; | sort -u)
+      - name: terraform test (plan-only, per component with tests/)
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=()
+          while IFS= read -r tdir; do
+            component=$(dirname "$tdir")
+            echo "::group::$component"
+            if ! (cd "$component" && terraform init -backend=false -input=false > /dev/null && terraform test); then
+              failures+=("$component")
+            fi
+            echo "::endgroup::"
+          done < <(find components/terraform -type d -name tests -not -path '*/.terraform/*' -not -path '*/modules/*' | sort)
+          if [[ ${#failures[@]} -gt 0 ]]; then
+            printf '::error::terraform test failed in:\n%s\n' "${failures[@]}"
+            exit 1
+          fi
 
   opa:
     name: opa (policy unit tests + conftest)

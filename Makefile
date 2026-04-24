@@ -63,8 +63,16 @@ tflint: ## Run tflint across every component
 		(cd "$$dir" && $(TFLINT) --minimum-failure-severity=warning); \
 	done
 
+.PHONY: tf-test
+tf-test: ## Run `terraform test` in every component that has a tests/ subdir
+	@for dir in $$(find $(COMPONENTS) -type d -name tests -not -path '*/.terraform/*' -not -path '*/modules/*' | sort); do \
+		component=$$(dirname "$$dir"); \
+		echo "==> $$component"; \
+		(cd "$$component" && $(TERRAFORM) init -backend=false -input=false > /dev/null && $(TERRAFORM) test); \
+	done
+
 .PHONY: test-static
-test-static: atmos-validate atmos-describe tf-fmt tf-validate tflint ## Static tier: atmos + fmt + validate + tflint
+test-static: atmos-validate atmos-describe tf-fmt tf-validate tflint tf-test ## Static tier: atmos + fmt + validate + tflint + tf-test
 
 # --- OPA tier --------------------------------------------------------------
 
