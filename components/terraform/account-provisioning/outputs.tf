@@ -1,6 +1,14 @@
 output "account_id" {
-  description = "12-digit AWS account ID of the newly vended account. Extracted from the provisioned product's RecordOutputs.AccountId. Published to SSM at /aft/account/<name>/id via the store-outputs hook."
+  description = "12-digit AWS account ID of the newly vended account. Extracted from the provisioned product's RecordOutputs.AccountId. Null until CT finishes provisioning — the precondition below will fail the apply rather than publish a null to SSM."
   value       = local.account_id
+
+  # Service Catalog may finish the provisioned_product resource before CT has
+  # populated AccountId in its outputs map. Fail the apply with a clear signal
+  # rather than silently emitting null to /aft/account/<name>/id.
+  precondition {
+    condition     = local.account_id != null
+    error_message = "Service Catalog provisioned product has not yet published AccountId - the account is likely still provisioning. Re-run terraform apply once the provisioned_product status settles to AVAILABLE."
+  }
 }
 
 output "account_name" {

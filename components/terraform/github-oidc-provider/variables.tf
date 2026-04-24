@@ -17,8 +17,11 @@ variable "client_id_list" {
 
 variable "thumbprint_list" {
   type        = list(string)
-  default     = []
-  description = "Optional explicit thumbprints. Empty = pinned to runtime-fetched cert fingerprint."
+  description = "GitHub OIDC TLS cert thumbprints. AWS ignores these post-2023 for token.actions.githubusercontent.com but the CreateOpenIDConnectProvider API still requires a non-empty list. Defaults to the two well-known GitHub Actions OIDC thumbprints."
+  default = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1",
+    "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
+  ]
 }
 
 variable "target_role_arn" {

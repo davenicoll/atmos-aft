@@ -10,7 +10,7 @@ module "parameters" {
       type        = v.type
       tier        = v.tier
       description = v.description
-      overwrite   = tostring(v.overwrite)
+      overwrite   = v.overwrite
     }
   ]
 

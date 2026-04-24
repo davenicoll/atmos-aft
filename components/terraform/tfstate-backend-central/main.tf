@@ -1,11 +1,13 @@
+data "aws_partition" "current" {}
+
 locals {
   enabled = module.this.enabled
 
   bucket_name = "atmos-tfstate-bootstrap-${var.aft_mgmt_account_id}-${var.region}"
   kms_alias   = "alias/atmos-tfstate-bootstrap"
 
-  central_role_principal = "arn:aws:iam::${var.aft_mgmt_account_id}:role/AtmosCentralDeploymentRole"
-  readall_role_principal = "arn:aws:iam::${var.aft_mgmt_account_id}:role/AtmosReadAllStateRole"
+  central_role_principal = "arn:${data.aws_partition.current.partition}:iam::${var.aft_mgmt_account_id}:role/AtmosCentralDeploymentRole"
+  readall_role_principal = "arn:${data.aws_partition.current.partition}:iam::${var.aft_mgmt_account_id}:role/AtmosReadAllStateRole"
 
   extra_bucket_statements = local.enabled ? jsonencode([
     {
@@ -14,8 +16,8 @@ locals {
       Principal = "*"
       Action    = "s3:*"
       Resource = [
-        "arn:aws:s3:::${local.bucket_name}",
-        "arn:aws:s3:::${local.bucket_name}/*",
+        "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}",
+        "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}/*",
       ]
       Condition = { Bool = { "aws:SecureTransport" = "false" } }
     },
@@ -29,8 +31,8 @@ locals {
         "s3:GetBucketVersioning",
       ]
       Resource = [
-        "arn:aws:s3:::${local.bucket_name}",
-        "arn:aws:s3:::${local.bucket_name}/*",
+        "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}",
+        "arn:${data.aws_partition.current.partition}:s3:::${local.bucket_name}/*",
       ]
     },
   ]) : "[]"
@@ -83,7 +85,7 @@ resource "aws_kms_key_policy" "this" {
       {
         Sid       = "EnableRootAccountPermissions"
         Effect    = "Allow"
-        Principal = { AWS = "arn:aws:iam::${var.aft_mgmt_account_id}:root" }
+        Principal = { AWS = "arn:${data.aws_partition.current.partition}:iam::${var.aft_mgmt_account_id}:root" }
         Action    = "kms:*"
         Resource  = "*"
       },
@@ -115,4 +117,12 @@ resource "aws_kms_key_policy" "this" {
       },
     ]
   })
+
+  # Bootstrap key: if this policy is lost, every deployment role loses crypto
+  # access to the central state bucket. The bucket + key are owned by the
+  # cloudposse module, so this policy is the only directly-declared surface
+  # available to protect here.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
