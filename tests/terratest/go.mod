@@ -3,7 +3,10 @@ module github.com/davenicoll/atmos-aft/tests/terratest
 go 1.25.8
 
 require (
-	github.com/aws/aws-sdk-go v1.44.122
+	github.com/aws/aws-sdk-go-v2 v1.41.5
+	github.com/aws/aws-sdk-go-v2/config v1.32.12
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.12
+	github.com/aws/aws-sdk-go-v2/service/sts v1.41.9
 	github.com/gruntwork-io/terratest v0.47.2
 	github.com/stretchr/testify v1.11.1
 )
@@ -22,10 +25,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.32.12 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.12 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.20 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.21 // indirect
@@ -39,7 +39,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.41.9 // indirect
 	github.com/aws/smithy-go v1.24.2 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -64,7 +63,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.9.1 // indirect
 	github.com/hashicorp/terraform-json v0.13.0 // indirect
 	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/mattn/go-zglob v0.0.2-0.20190814121620-e3c945676326 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect

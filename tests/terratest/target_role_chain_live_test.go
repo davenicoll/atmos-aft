@@ -1,14 +1,17 @@
+//go:build e2e
+
 package terratest_test
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/davenicoll/atmos-aft/tests/terratest/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,11 +23,11 @@ import (
 // component` says the stack targets. Proves the central→target hop
 // actually lands in the right account.
 //
-// Requires: TT_ENABLE_TAGS=live, AWS_* creds for the central role (what
+// Requires: TT_ENABLE_TAGS=e2e, AWS_* creds for the central role (what
 // configure-aws would set), TT_LIVE_STACK + TT_LIVE_COMPONENT env vars
 // naming a stack/component that resolves a target account.
 func TestTargetRoleChain_LiveAssumeMatchesStack(t *testing.T) {
-	helpers.RequireTag(t, "live")
+	helpers.RequireTag(t, "e2e")
 
 	stack := os.Getenv("TT_LIVE_STACK")
 	component := os.Getenv("TT_LIVE_COMPONENT")
@@ -45,30 +48,42 @@ func TestTargetRoleChain_LiveAssumeMatchesStack(t *testing.T) {
 	}
 	roleArn := "arn:aws:iam::" + expectedAccount + ":role/" + targetRole
 
-	sess, err := session.NewSession()
-	require.NoError(t, err, "aws session")
+	ctx := context.Background()
 
-	stsCli := sts.New(sess)
-	assumeOut, err := stsCli.AssumeRole(&sts.AssumeRoleInput{
+	cfg, err := config.LoadDefaultConfig(ctx)
+	require.NoError(t, err, "aws config")
+
+	stsCli := sts.NewFromConfig(cfg)
+
+	// Verify the caller credentials reference the central deployment role
+	// before we attempt the target hop. If we're running under the wrong
+	// identity the downstream assertion would be misleading.
+	centralIdent, err := stsCli.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	require.NoError(t, err, "sts:GetCallerIdentity for central credentials")
+	require.NotNil(t, centralIdent.Arn)
+	assert.Contains(t, *centralIdent.Arn, "AtmosCentralDeploymentRole",
+		"caller ARN %q must reference AtmosCentralDeploymentRole — this test requires the central role as starting credentials", *centralIdent.Arn)
+
+	assumeOut, err := stsCli.AssumeRole(ctx, &sts.AssumeRoleInput{
 		RoleArn:         aws.String(roleArn),
 		RoleSessionName: aws.String("atmos-aft-live-chain-probe"),
-		DurationSeconds: aws.Int64(900),
+		DurationSeconds: aws.Int32(900),
 	})
 	require.NoError(t, err, "sts:AssumeRole into %s", roleArn)
 
 	creds := assumeOut.Credentials
 	require.NotNil(t, creds)
 
-	probeSess, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(
+	probeCfg, err := config.LoadDefaultConfig(ctx,
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			*creds.AccessKeyId,
 			*creds.SecretAccessKey,
 			*creds.SessionToken,
-		),
-	})
+		)),
+	)
 	require.NoError(t, err)
 
-	ident, err := sts.New(probeSess).GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	ident, err := sts.NewFromConfig(probeCfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	require.NoError(t, err)
 	require.NotNil(t, ident.Account)
 
