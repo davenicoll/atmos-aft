@@ -14,6 +14,15 @@ package atmos.guardduty
 
 import rego.v1
 
+# Canonical phase → Atmos component name map. Used both to validate the
+# component value in metadata.depends_on entries and to document the 1:1
+# mapping the policy expects.
+_phase_component := {
+	1: "guardduty-root",
+	2: "guardduty-delegated-admin",
+	3: "guardduty-member-settings",
+}
+
 deny contains msg if {
 	some stack_name, stack in input
 	some comp_name, comp in stack.components.terraform
@@ -40,22 +49,45 @@ deny contains msg if {
 	)
 }
 
+# Any component that sets metadata.phase at all must use a valid value —
+# catches typos like phase=0, phase=99, phase=1.5 even on non-guardduty
+# components. The {1,2,3} set is the only valid GuardDuty phase space.
+deny contains msg if {
+	some stack_name, stack in input
+	some comp_name, comp in stack.components.terraform
+	comp.metadata.phase
+	not comp.metadata.phase in {1, 2, 3}
+	msg := sprintf(
+		"stack %q component %q: metadata.phase=%v is not in {1, 2, 3}",
+		[stack_name, comp_name, comp.metadata.phase],
+	)
+}
+
 _is_guardduty(comp) if {
 	src := _source(comp)
 	contains(src, "guardduty")
 }
 
+# Only recognise a phase when it is one of the three canonical values. This
+# mirrors the explicit deny above and means `_phase(comp)` returning nothing
+# (rather than e.g. 99) for invalid inputs.
 _has_phase(comp) if {
-	is_number(comp.metadata.phase)
+	comp.metadata.phase in {1, 2, 3}
 }
 
 _phase(comp) := p if {
 	p := comp.metadata.phase
+	p in {1, 2, 3}
 }
 
+# Prior-phase dependency is satisfied when the component declares a
+# depends_on entry whose phase is exactly phase-1 AND whose component name
+# matches the canonical component for that phase. This catches both
+# "wrong phase" and "right phase, wrong component" typos.
 _declares_prior_phase(comp, phase) if {
 	some dep in comp.metadata.depends_on
 	dep.phase == phase - 1
+	dep.component == _phase_component[dep.phase]
 }
 
 _source(comp) := src if {

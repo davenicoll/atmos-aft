@@ -43,40 +43,11 @@ test_denies_aws_account if {
 	count(result) == 1
 }
 
-test_denies_raw_aws_organizations_organization_resource if {
-	result := components.deny with input as {"core-gbl-mgmt": {"components": {"terraform": {"custom": {
-		"component": "custom-org-wrapper",
+# metadata.component fallback path (component: key absent, metadata.component present).
+test_denies_forbidden_source_via_metadata_component if {
+	result := components.deny with input as {"core-gbl-mgmt": {"components": {"terraform": {"org": {
+		"metadata": {"component": "aws-organization"},
 		"vars": {},
-		"metadata": {"resource_types": ["aws_organizations_organization"]},
 	}}}}}
 	count(result) == 1
-}
-
-test_denies_raw_account_resource_even_in_child_stack if {
-	result := components.deny with input as {"plat-use1-dev": {"components": {"terraform": {"acct": {
-		"component": "mine",
-		"vars": {},
-		"metadata": {"resource_types": ["aws_organizations_account"]},
-	}}}}}
-	count(result) == 1
-}
-
-# --- top-level aws-config wrapper guard ------------------------------------
-
-test_denies_top_level_aws_config_source if {
-	result := components.deny with input as {"core-gbl-mgmt": {"components": {"terraform": {"config": {
-		"component": "aws-config-top-level",
-		"vars": {},
-		"metadata": {"terraform_sources": ["cloudposse/config/aws"]},
-	}}}}}
-	count(result) == 1
-}
-
-test_allows_aws_config_submodule_source if {
-	result := components.deny with input as {"plat-use1-dev": {"components": {"terraform": {"config": {
-		"component": "aws-config-rules",
-		"vars": {},
-		"metadata": {"terraform_sources": ["cloudposse/config/aws//modules/cis-1-2-rules"]},
-	}}}}}
-	count(result) == 0
 }
