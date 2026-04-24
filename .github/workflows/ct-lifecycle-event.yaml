@@ -3,9 +3,7 @@ name: ct-lifecycle-event
 on:
   repository_dispatch:
     types:
-      - ct-create-managed-account
-      - ct-update-managed-account
-      - ct-register-organizational-unit
+      - ct-lifecycle
 
 permissions:
   contents: read
@@ -14,7 +12,10 @@ permissions:
   issues: write
 
 concurrency:
-  group: ct-event-${{ github.event.client_payload.event_id }}
+  # client_payload is the full CT event envelope (top-level `id` is the
+  # CloudTrail event id). See controltower-event-bridge component's
+  # input_transformer template.
+  group: ct-event-${{ github.event.client_payload.id }}
   cancel-in-progress: false
 
 jobs:
@@ -25,7 +26,7 @@ jobs:
     environment: aft-mgmt
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/configure-aws
         with:
           mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
@@ -36,10 +37,11 @@ jobs:
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
           BUCKET: ${{ vars.CT_EVENTS_ARCHIVE_BUCKET }}
-          EVENT_ID: ${{ github.event.client_payload.event_id }}
+          EVENT_ID: ${{ github.event.client_payload.id }}
         run: |
           set -euo pipefail
           [[ -z "$BUCKET" ]] && { echo "::error::CT_EVENTS_ARCHIVE_BUCKET not set"; exit 1; }
+          [[ -z "$EVENT_ID" ]] && { echo "::error::client_payload.id missing; unexpected event shape"; exit 1; }
           date_path=$(date -u +'%Y/%m/%d')
           key="${date_path}/${EVENT_ID}.json"
           printf '%s' "$PAYLOAD" > "$RUNNER_TEMP/payload.json"
@@ -53,21 +55,41 @@ jobs:
     outputs:
       action: ${{ steps.c.outputs.action }}
       account_id: ${{ steps.c.outputs.account_id }}
+      event_name: ${{ steps.c.outputs.event_name }}
     steps:
       - id: c
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event.client_payload.event_name }}
-          ACCOUNT_ID: ${{ github.event.client_payload.account_id }}
+          # Full raw CT event envelope — branch on detail.eventName and pluck
+          # the per-event account id out of the correct serviceEventDetails
+          # sub-object (createManagedAccountStatus / updateManagedAccountStatus
+          # / registerOrganizationalUnitStatus — the last has no account).
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
         run: |
           set -euo pipefail
-          case "$EVENT_NAME" in
-            CreateManagedAccount) echo "action=correlate" >> "$GITHUB_OUTPUT" ;;
-            UpdateManagedAccount) echo "action=resync" >> "$GITHUB_OUTPUT" ;;
-            RegisterOrganizationalUnit) echo "action=archive-only" >> "$GITHUB_OUTPUT" ;;
-            *) echo "action=archive-only" >> "$GITHUB_OUTPUT" ;;
+          event_name=$(echo "$PAYLOAD" | jq -r '.detail.eventName // ""')
+          [[ -z "$event_name" ]] && { echo "::error::detail.eventName missing"; exit 1; }
+          case "$event_name" in
+            CreateManagedAccount)
+              echo "action=correlate" >> "$GITHUB_OUTPUT"
+              account_id=$(echo "$PAYLOAD" | jq -r '.detail.serviceEventDetails.createManagedAccountStatus.account.accountId // ""')
+              ;;
+            UpdateManagedAccount)
+              echo "action=resync" >> "$GITHUB_OUTPUT"
+              account_id=$(echo "$PAYLOAD" | jq -r '.detail.serviceEventDetails.updateManagedAccountStatus.account.accountId // ""')
+              ;;
+            RegisterOrganizationalUnit)
+              echo "action=archive-only" >> "$GITHUB_OUTPUT"
+              account_id=""
+              ;;
+            *)
+              echo "::warning::unexpected CT eventName: $event_name"
+              echo "action=archive-only" >> "$GITHUB_OUTPUT"
+              account_id=""
+              ;;
           esac
-          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+          echo "event_name=$event_name" >> "$GITHUB_OUTPUT"
+          echo "account_id=$account_id" >> "$GITHUB_OUTPUT"
 
   correlate:
     name: correlate with SSM
@@ -80,7 +102,7 @@ jobs:
       stack: ${{ steps.cor.outputs.stack }}
       needs_fanout: ${{ steps.cor.outputs.needs_fanout }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/configure-aws
         with:
           mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
@@ -93,6 +115,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACCOUNT_ID: ${{ needs.classify.outputs.account_id }}
           ACTION: ${{ needs.classify.outputs.action }}
+          EVENT_NAME: ${{ needs.classify.outputs.event_name }}
         run: |
           set -euo pipefail
           status=$(aws ssm get-parameter --name "/aft/account/${ACCOUNT_ID}/status" --query 'Parameter.Value' --output text 2>/dev/null || echo "ABSENT")
@@ -103,7 +126,7 @@ jobs:
             gh issue create \
               --title "ct-unmanaged-account: $ACCOUNT_ID" \
               --label ct-unmanaged-account \
-              --body "CT emitted ${{ github.event.client_payload.event_name }} for account $ACCOUNT_ID but /aft/account/$ACCOUNT_ID/status is absent. Onboard via import-existing-account.yaml." \
+              --body "CT emitted ${EVENT_NAME} for account ${ACCOUNT_ID} but /aft/account/${ACCOUNT_ID}/status is absent. Onboard via import-existing-account.yaml." \
               || true
             echo "needs_fanout=false" >> "$GITHUB_OUTPUT"
             echo "stack=" >> "$GITHUB_OUTPUT"
