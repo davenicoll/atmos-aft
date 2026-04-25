@@ -15,6 +15,17 @@ variable "functions" {
     log_retention_in_days = optional(number, 90)
     log_kms_key_arn       = optional(string, null)
     policy_json           = optional(string, null)
+
+    # tracing_config_mode: PassThrough | Active | null. Real AFT runs Active
+    # for end-to-end X-Ray; default null disables tracing (no extra IAM
+    # permissions needed) so callers opt in deliberately.
+    tracing_config_mode = optional(string, null)
+
+    # reserved_concurrent_executions: -1 = unreserved (account-pool wide);
+    # 0 = throttle to zero (effectively disable); positive = cap. Newly-
+    # vended account hooks fan out wide, so capping per-function avoids
+    # accidental account-pool exhaustion. Default -1 preserves prior behavior.
+    reserved_concurrent_executions = optional(number, -1)
   }))
   default     = {}
   description = "Map of logical function name → Lambda spec. Surviving AFT lifecycle Lambdas (delete_default_vpc, enable_cloudtrail, enroll_support). Path to zip must be resolvable at plan time."

@@ -21,5 +21,8 @@ module "lambda" {
 
   inline_iam_policy = each.value.policy_json
 
+  tracing_config_mode            = each.value.tracing_config_mode
+  reserved_concurrent_executions = each.value.reserved_concurrent_executions
+
   context = module.this.context
 }

@@ -167,3 +167,38 @@ run "rejects_too_short_external_id" {
     var.atmos_external_id,
   ]
 }
+
+run "rejects_empty_external_id_on_ct_core_class" {
+  command = plan
+
+  # The variable validation accepts "" (for vended accounts that don't
+  # need ExternalId). The lifecycle.precondition on aws_iam_role.deployment
+  # enforces the cross-variable invariant: CT-core class + empty
+  # ExternalId would render values=[""] in the trust statement, silently
+  # locking the role out for everyone.
+  variables {
+    account_class     = "ct-mgmt"
+    atmos_external_id = ""
+  }
+
+  expect_failures = [
+    aws_iam_role.deployment,
+  ]
+}
+
+run "vended_with_empty_external_id_is_allowed" {
+  command = plan
+
+  # Vended accounts intentionally don't require ExternalId (the freshly-
+  # vended account ID is the uniqueness signal). Confirm the precondition
+  # only fires for CT-core classes.
+  variables {
+    account_class     = "vended"
+    atmos_external_id = ""
+  }
+
+  assert {
+    condition     = var.atmos_external_id == ""
+    error_message = "vended + empty external_id must be permitted."
+  }
+}
