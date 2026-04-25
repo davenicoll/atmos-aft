@@ -27,6 +27,12 @@ variable "event_selectors" {
   description = "Event selectors (e.g. S3 data events, Lambda data events). Passed through to cloudposse/cloudtrail shape."
 }
 
+variable "access_log_bucket_name" {
+  type        = string
+  default     = ""
+  description = "Name of an S3 bucket to receive server-access logs for the trail bucket (CIS 2.6). Empty disables access logging — set this for prod or any audited deployment."
+}
+
 variable "target_role_arn" {
   type        = string
   default     = ""
