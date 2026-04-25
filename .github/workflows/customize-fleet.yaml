@@ -98,7 +98,6 @@ jobs:
     uses: ./.github/workflows/_customize-global.yaml
     with:
       target_stacks: ${{ toJSON(matrix.chunk) }}
-      environment: prod
     secrets: inherit
 
   customize-account:
@@ -111,7 +110,6 @@ jobs:
     uses: ./.github/workflows/_customize-account.yaml
     with:
       target_stacks: ${{ toJSON(matrix.chunk) }}
-      environment: prod
     secrets: inherit
 
   report:

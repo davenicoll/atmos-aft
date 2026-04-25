@@ -1,5 +1,9 @@
 name: custom-provisioning-hook
 
+# Dual trigger: workflow_call lets a sibling workflow `uses:` this directly;
+# workflow_dispatch matches what `_post-provision-hook.yaml` actually does
+# (it fires via createWorkflowDispatch so the dispatched run shows up
+# independently in the Actions UI for audit).
 on:
   workflow_call:
     inputs:
@@ -9,9 +13,25 @@ on:
       account_id:
         required: true
         type: string
+      customization_name:
+        required: false
+        type: string
+        default: ""
     secrets:
       SERVICENOW_TOKEN:
         required: false
+  workflow_dispatch:
+    inputs:
+      stack:
+        required: true
+        type: string
+      account_id:
+        required: true
+        type: string
+      customization_name:
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -27,6 +47,7 @@ jobs:
         env:
           STACK: ${{ inputs.stack }}
           ACCOUNT_ID: ${{ inputs.account_id }}
+          CNAME: ${{ inputs.customization_name }}
         run: |
-          echo "::notice::custom-provisioning-hook invoked for stack=$STACK account_id=$ACCOUNT_ID"
+          echo "::notice::custom-provisioning-hook invoked for stack=$STACK account_id=$ACCOUNT_ID customization=$CNAME"
           echo "Default no-op. Replace this file with customer-owned hook logic."

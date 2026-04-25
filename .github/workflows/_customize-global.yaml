@@ -46,6 +46,10 @@ jobs:
         with:
           stack: ${{ matrix.stack }}
           component: customizations/global
+          # Central-only stacks have no target account; let resolve-stack
+          # report empty values rather than fail. configure-aws skips its
+          # assume_role block when target_role_arn is empty.
+          require_target: "false"
       - uses: ./.github/actions/configure-aws
         with:
           central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
