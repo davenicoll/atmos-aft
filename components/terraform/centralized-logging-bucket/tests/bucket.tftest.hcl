@@ -1,17 +1,7 @@
 # Verifies the SSE/KMS wiring contract for the centralized logging
-# bucket: defaults are aws:kms, kms_master_key_arn is null-coalesced to
-# "" before being passed to the cloudposse module, ssl-only is enforced,
-# versioning is on, force_destroy is pinned off.
-#
-# AUDIT GOTCHA — UNRESOLVED, OUT OF SCOPE HERE:
-#   When sse_algorithm = "aws:kms" (default) and kms_master_key_arn is
-#   null, main.tf rewrites the arn to the empty string "" and passes it
-#   to the cloudposse module, which silently falls back to the
-#   AWS-managed `aws/s3` key. Production should error in this state.
-#   Flagged for a follow-up validation block on
-#   sse_algorithm/kms_master_key_arn coupling. Tests below assert the
-#   current behaviour to lock in regression coverage; do NOT mistake
-#   them for endorsement of the silent-fallback shape.
+# bucket. The default sse_algorithm is aws:kms; an output precondition
+# now rejects (sse_algorithm=aws:kms, kms_master_key_arn=null) so the
+# silent-fallback-to-aws/s3 trap can't ship.
 
 mock_provider "aws" {
   mock_data "aws_iam_policy_document" {
@@ -44,6 +34,11 @@ variables {
   namespace = "test"
   stage     = "audit"
   name      = "central-logs"
+
+  # Default sse_algorithm=aws:kms. Provide a CMK arn to satisfy the
+  # cross-variable precondition; runs that need to vary either field
+  # override locally.
+  kms_master_key_arn = "arn:aws:kms:us-east-1:123456789012:key/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 }
 
 run "default_sse_algorithm_is_kms" {
@@ -55,17 +50,30 @@ run "default_sse_algorithm_is_kms" {
   }
 }
 
-run "kms_master_key_arn_default_is_null_silent_fallback" {
+run "rejects_aws_kms_with_null_kms_arn" {
   command = plan
 
-  # SEE FILE-HEADER GOTCHA: defaults pair sse_algorithm=aws:kms with
-  # kms_master_key_arn=null, which main.tf rewrites to "" — silently
-  # falling back to the AWS-managed aws/s3 key. This assert pins the
-  # current behaviour. Once the validation is added upstream, this run
-  # block flips to expect_failures.
+  variables {
+    sse_algorithm      = "aws:kms"
+    kms_master_key_arn = null
+  }
+
+  expect_failures = [
+    output.bucket_id,
+  ]
+}
+
+run "aes256_with_null_kms_is_allowed" {
+  command = plan
+
+  variables {
+    sse_algorithm      = "AES256"
+    kms_master_key_arn = null
+  }
+
   assert {
-    condition     = var.kms_master_key_arn == null
-    error_message = "Default kms_master_key_arn must be null."
+    condition     = var.sse_algorithm == "AES256"
+    error_message = "AES256 + null kms_master_key_arn must be allowed (the precondition only fires for aws:kms)."
   }
 }
 

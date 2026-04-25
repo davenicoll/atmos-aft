@@ -6,13 +6,18 @@ variable "region" {
 variable "sse_algorithm" {
   type        = string
   default     = "aws:kms"
-  description = "SSE algorithm. AES256 or aws:kms."
+  description = "SSE algorithm. AES256 or aws:kms (CMK required when aws:kms — see kms_master_key_arn validation)."
+
+  validation {
+    condition     = contains(["AES256", "aws:kms"], var.sse_algorithm)
+    error_message = "sse_algorithm must be one of: AES256, aws:kms."
+  }
 }
 
 variable "kms_master_key_arn" {
   type        = string
   default     = null
-  description = "KMS key ARN for SSE-KMS (required when sse_algorithm=aws:kms)."
+  description = "KMS key ARN for SSE-KMS. Required (non-null) when sse_algorithm=aws:kms — without it the s3-bucket module silently falls back to the AWS-managed aws/s3 key."
 }
 
 variable "lifecycle_rules" {
