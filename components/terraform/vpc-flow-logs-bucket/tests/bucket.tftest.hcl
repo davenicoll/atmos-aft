@@ -3,18 +3,12 @@
 # (lifecycle: 30d→IA, 90d→Glacier, 365d expiration), force_destroy is
 # pinned off, and lifecycle ordering is sane.
 #
-# Implementation note: the wrapped cloudposse/vpc-flow-logs-s3-bucket
-# module pins `count = local.enabled && var.flow_log_enabled ? 1 : 0`
-# on aws_flow_log, with var.flow_log_enabled defaulting to true. This
-# component does not expose vpc_id, so a `terraform plan` with
-# `enabled = true` fails the AWS provider's ExactlyOneOf validation on
-# aws_flow_log (one of vpc_id/subnet_id/eni_id/etc. must be specified).
-# That is a latent contract bug in main.tf — the component should set
-# `flow_log_enabled = false` since this is a bucket-only component
-# (consumers in workload accounts create their own aws_flow_log against
-# the bucket). Out of scope here; tests run with `enabled = false` so
-# the wrapped module's count-guards short-circuit, leaving only the var
-# surface to assert against.
+# Component-side contract: this is a BUCKET-only component — consumers
+# in vended accounts create their own aws_flow_log resources against
+# this bucket cross-account. main.tf pins `flow_log_enabled = false` on
+# the wrapped cloudposse module so its aws_flow_log resource is
+# count-zeroed (otherwise the provider's ExactlyOneOf validation on
+# vpc_id/subnet_id/eni_id would fail).
 
 mock_provider "aws" {
   mock_data "aws_iam_policy_document" {
@@ -47,7 +41,6 @@ variables {
   namespace = "test"
   stage     = "audit"
   name      = "vpc-flow-logs"
-  enabled   = false
 }
 
 run "default_lifecycle_thresholds" {
@@ -108,10 +101,13 @@ run "ordering_invariant_standard_lt_glacier_lt_expiration" {
 run "outputs_are_empty_when_disabled" {
   command = plan
 
-  # Sanity: when enabled=false, the wrapped module's count-guards
-  # produce no bucket. The cloudposse module emits "" (not null) for
-  # disabled outputs; the wrapping component's `try(...)` keeps that
-  # value verbatim.
+  variables {
+    enabled = false
+  }
+
+  # When enabled=false the wrapped module's count-guards produce no
+  # bucket. The cloudposse module emits "" (not null) for disabled
+  # outputs; the wrapping component's `try(...)` keeps that verbatim.
   assert {
     condition     = output.bucket_id == "" || output.bucket_id == null
     error_message = "bucket_id must be empty/null when enabled=false."
