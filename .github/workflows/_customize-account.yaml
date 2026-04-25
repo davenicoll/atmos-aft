@@ -54,6 +54,10 @@ jobs:
         with:
           stack: ${{ matrix.stack }}
           component: customizations/default
+          # Central-only stacks (no target account) are valid here — the
+          # resolve-name shell branch below handles empty account_id by
+          # falling back to the "default" customization name.
+          require_target: "false"
       - id: resolve-name
         shell: bash
         env:
@@ -77,6 +81,7 @@ jobs:
         with:
           stack: ${{ matrix.stack }}
           component: customizations/${{ steps.resolve-name.outputs.name }}
+          require_target: "false"
       - uses: ./.github/actions/configure-aws
         with:
           central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}

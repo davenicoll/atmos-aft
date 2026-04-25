@@ -1,5 +1,6 @@
 # CODEOWNERS — routes PR review to the right people by path.
-# Lines are matched in order; the LAST matching line wins. See review.md §5.
+# Lines are matched in order; the LAST matching line wins. See
+# docs/architecture/gha-design.md §5 for the review-routing rationale.
 
 # Default: platform team reviews everything.
 *                                       @davenicoll
@@ -17,7 +18,7 @@
 /components/terraform/account-provisioning/     @davenicoll
 /components/terraform/iam-deployment-roles/     @davenicoll
 /components/terraform/tfstate-backend/          @davenicoll
-/components/terraform/ct-event-bridge/          @davenicoll
+/components/terraform/controltower-event-bridge/ @davenicoll
 /components/terraform/cloudtrail-lake/          @davenicoll
 
 # Reusable workflows — invoked by every entry-point; breakage is systemic.
