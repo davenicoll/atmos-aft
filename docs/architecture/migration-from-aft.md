@@ -298,7 +298,7 @@ Changes to make:
 | `{{ ssm_account_id }}` | Remove; runtime auth fills this in. |
 | `{{ tf_s3_bucket }}` / `{{ tf_s3_key }}` / `{{ tf_dynamodb_table }}` | Declared in stack catalog; remove the Jinja. |
 
-- **Keep `api_helpers/pre-api-helpers.sh` and `post-api-helpers.sh`.** These run as GHA composite action steps (`.github/actions/run-api-helpers/`). Update any hard-coded AFT role names:
+- **Keep `api_helpers/pre-api-helpers.sh` and `post-api-helpers.sh`.** When the customizations layer ships (NOT YET IMPLEMENTED — see §5), the `_customize-global.yaml` and `_customize-account.yaml` reusables will invoke them via inline `run:` steps inside `scripts/customize/{pre,post}-api-helpers.sh` (the upstream stubs already check for these paths with `[[ -x ... ]]`). Update any hard-coded AFT role names in the helpers:
 
 ```bash
 # Old

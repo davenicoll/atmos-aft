@@ -19,7 +19,7 @@ Anything else the operator wants to vary (VCS provider, TF distribution, per-fea
 
 ## 1. Design principles
 
-1. **One repo, one dispatcher, many reusable workflows.** Every top-level workflow in `.github/workflows/` is either a trigger binding (cron, PR, push, dispatch) or a thin dispatcher that fans out to reusable workflows. Actual deployment logic lives in `.github/workflows/reusable/`. See §2.
+1. **One repo, one dispatcher, many reusable workflows.** Every top-level workflow in `.github/workflows/` is either a trigger binding (cron, PR, push, dispatch) or a thin dispatcher that fans out to reusable workflows. Actual deployment logic lives in the `_*.yaml`-prefixed reusables in the same `.github/workflows/` dir. See §2.
 2. **Composite actions for repeated step sequences, reusable workflows for repeated jobs.** Anywhere three or more workflows need the same credential-setup + checkout + `atmos` bootstrap sequence, it becomes a composite action under `.github/actions/`. Anywhere two or more workflows need the same end-to-end deploy-one-component job, it becomes a reusable workflow. See §7.
 3. **Git is the inbox.** PR merge is `INSERT`/`MODIFY`; tombstone markers are `REMOVE`. There is no DDB stream, no custom EventBridge bus, no polling Lambda. `atmos describe affected --format=matrix` drives the matrix.
 4. **Every workflow has an explicit concurrency group.** No two deploys against the same `(stack, component)` can overlap. Cross-account fan-outs are bounded by a global `ct-provisioning` group (serialises Service Catalog calls against the CT Account Factory portfolio, same reason AFT uses a FIFO SQS with `maxReceiveCount=1`). See §8.
@@ -38,11 +38,10 @@ One repository, called `atmos-aft` by convention, hosts:
 - `atmos.yaml`, `vendor.yaml`
 - `components/terraform/` — Terraform root modules (vendored + first-party)
 - `stacks/` — Atmos stack YAML (orgs, catalog, mixins, workflows)
-- `.github/workflows/` — entry-point workflows (triggers)
-- `.github/workflows/reusable/` — `workflow_call` targets
+- `.github/workflows/` — both entry-point workflows and reusable `workflow_call` targets (the reusables are name-prefixed `_`, e.g. `_atmos-apply.yaml`; there is no `reusable/` subdir)
 - `.github/actions/` — composite actions
 - `.github/policies/` — OPA policies run by CI
-- `scripts/` — one-shot operator scripts (`bootstrap.sh`, `import-existing-accounts.sh`, `chunk-matrix.sh`)
+- `scripts/` — one-shot operator scripts (`bootstrap/run.sh` for the bootstrap CLI; `classify-affected.sh` for the affected-stacks matrix; `bootstrap/render.sh` and `bootstrap/questions.yaml` for the interactive scaffold). Account import lives in `import-existing-account.yaml`, not a script.
 - `docs/` — this directory
 
 **Why monorepo.** AFT's model requires four customer-facing repos (`aft-analysis.md` §6) precisely because AFT ran as Terraform + a fleet of CodePipelines watching each repo individually. We collapse all four AFT repos into one (`mapping.md` §6) because:
@@ -77,11 +76,13 @@ If (a) appears, the minimum split is two repos: `atmos-aft-core` (this one) and 
     custom-provisioning-hook.yaml            # trigger: workflow_call (no-op default)
     notify.yaml                              # trigger: workflow_run
     ct-lifecycle-event.yaml                  # trigger: repository_dispatch (CT events)
-  workflows/reusable/
+  workflows/                                 # reusables share this dir, prefixed `_`
     _atmos-plan.yaml                         # workflow_call
     _atmos-apply.yaml                        # workflow_call
     _atmos-destroy.yaml                      # workflow_call
     _atmos-validate.yaml                     # workflow_call
+    _apply-security-service.yaml             # workflow_call
+    _bootstrap-target.yaml                   # workflow_call
     _matrix-chunk.yaml                       # workflow_call (recursive chunker)
     _customize-global.yaml                   # workflow_call
     _customize-account.yaml                  # workflow_call
@@ -89,6 +90,7 @@ If (a) appears, the minimum split is two repos: `atmos-aft-core` (this one) and 
     _post-provision-hook.yaml                # workflow_call
   actions/
     setup-atmos/                             # composite: install atmos + terraform
+    install-gha-cli-deps/                    # composite: jq, yq, conftest, opa
     configure-aws/                           # composite: OIDC or access-key, chain-aware
     resolve-stack/                           # composite: stack → account_id + auth context
     publish-status/                          # composite: write SSM /aft/account/<n>/status
@@ -766,6 +768,8 @@ Plus a global `ct-provisioning` group on the `account-provisioning` job only (§
 
 ### 5.4 `customize-fleet.yaml`
 
+> **NOT YET IMPLEMENTED end-to-end.** The `customize-fleet.yaml` workflow ships, the `_customize-global.yaml` / `_customize-account.yaml` reusables ship, and the chunker fans out — but the underlying `components/terraform/customizations/<name>/` directory tree is not yet present. References below to `customizations/global` / `customizations/<name>` describe the *intended* contract; today the matrix steps short-circuit on missing components. Track via `migration-from-aft.md` §5.
+
 **Purpose.** Run customization components against some or all existing accounts. AFT equivalent: the `aft-invoke-customizations` SFN (`aft-analysis.md` §2 phase E step 10, §3.1 projects 3 and 4).
 
 **Triggers.**
@@ -1396,7 +1400,7 @@ The `_matrix-chunk.yaml` reusable splits the input into chunks of 200. The paren
 ```yaml
 jobs:
   chunk:
-    uses: ./.github/workflows/reusable/_matrix-chunk.yaml
+    uses: ./.github/workflows/_matrix-chunk.yaml
     with:
       targets: ${{ needs.resolve-targets.outputs.target_list }}
       chunk_size: 200
@@ -1408,7 +1412,7 @@ jobs:
         chunk_index: ${{ fromJson(needs.chunk.outputs.chunk_indices) }}
       fail-fast: false
       max-parallel: 2
-    uses: ./.github/workflows/reusable/_customize-global.yaml
+    uses: ./.github/workflows/_customize-global.yaml
     with:
       target_stacks: ${{ fromJson(needs.chunk.outputs[format('chunk_{0}', matrix.chunk_index)]) }}
 ```
@@ -1618,7 +1622,7 @@ Encoded in a composite action `resolve-environment` so the logic stays in one pl
 - Restrict pushes to `main` to the `automation` bot or direct-merge.
 - Disallow force-pushes.
 
-CODEOWNERS enforces that `.github/workflows/reusable/_*.yaml` and `.github/policies/*` require platform-team review.
+CODEOWNERS enforces that `.github/workflows/_*.yaml` and `.github/policies/*` require platform-team review.
 
 ### 10.4 Secret rotation
 

@@ -530,7 +530,7 @@ atmos-aft/
 │       ├── github-oidc-provider/      # + deployment roles per account
 │       ├── vpc/                       # vendored from terraform-aws-components
 │       ├── … baseline components …
-│       └── customizations/<name>/     # per-account customization modules
+│       └── customizations/<name>/     # per-account customization modules (NOT YET IMPLEMENTED — see migration-from-aft.md §5)
 └── stacks/
     ├── catalog/                       # reusable component defaults
     │   ├── account-provisioning/defaults.yaml
