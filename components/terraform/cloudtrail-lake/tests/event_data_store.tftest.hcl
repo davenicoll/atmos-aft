@@ -1,22 +1,16 @@
 # Verifies the aws_cloudtrail_event_data_store contract: name from
-# module.this.id, default ~7-year retention, single-region by default,
-# termination protection on, kms_key_id pass-through, and the four
-# advanced-event-selector event sources (controltower, organizations,
-# servicecatalog, sts).
-#
-# Note: var.retention_days defaults to 2557 but the AWS provider's
-# plan-time validation rejects retention_period > 2555. We use 2555 in
-# all "happy" runs so plans succeed; the 2557 default is a latent bug
-# (flagged for upstream provider/version bump, out of scope here).
+# module.this.id, default ~7-year retention (2555d, the AWS provider
+# cap), single-region by default, termination protection on, kms_key_id
+# pass-through, and the four advanced-event-selector event sources
+# (controltower, organizations, servicecatalog, sts).
 
 mock_provider "aws" {}
 
 variables {
-  region         = "us-east-1"
-  namespace      = "test"
-  stage          = "test"
-  name           = "cloudtrail-lake"
-  retention_days = 2555
+  region    = "us-east-1"
+  namespace = "test"
+  stage     = "test"
+  name      = "cloudtrail-lake"
 }
 
 run "retention_period_flows_through" {
@@ -147,7 +141,7 @@ run "rejects_retention_above_maximum" {
   command = plan
 
   variables {
-    retention_days = 3654
+    retention_days = 2556 # one above the AWS provider plan-time cap (2555)
   }
 
   expect_failures = [
