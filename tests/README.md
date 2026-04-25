@@ -35,16 +35,24 @@ tests/
 │   ├── README.md
 │   └── events/                      # per-workflow event fixtures
 ├── opa/
-│   ├── fixtures/                    # reserved for external JSON fixtures (currently empty; fixtures are inline in _test.rego via `with input as {...}`)
+│   ├── README.md
 │   ├── forbidden_components_test.rego
 │   ├── guardduty_phase_ordering_test.rego
 │   ├── naming_test.rego
-│   └── required_ct_flags_test.rego
+│   └── required_ct_flags_test.rego  # fixtures are inline via `with input as {...}`
+├── bootstrap/
+│   ├── golden/                      # expected output for the bootstrap dry-run
+│   ├── answers.yaml                 # non-interactive answers fixture
+│   └── test_dry_run.sh
 ├── terratest/
 │   ├── go.mod
 │   ├── helpers/atmos.go             # shared: RepoRoot, DescribeComponent, etc.
-│   └── *_test.go
+│   └── *_test.go                    # legacy — prefer .tftest.hcl below
 └── README.md (this file)
+
+components/terraform/<name>/tests/   # native `terraform test` (.tftest.hcl)
+                                     # — preferred home for new component coverage
+                                     # — runs in CI as part of the static tier
 ```
 
 ## What each tier catches
