@@ -20,7 +20,10 @@ concurrency:
 jobs:
   affected:
     name: describe affected
-    if: github.repository != 'davenicoll/atmos-aft'
+    # Skip when AtmosCentralDeploymentRole isn't yet wired up. Same
+    # chicken-and-egg as pr.yaml: the role is created by Phase C bootstrap,
+    # so the merge of the bootstrap scaffold PR runs before the role exists.
+    if: github.repository != 'davenicoll/atmos-aft' && vars.ATMOS_CENTRAL_ROLE_ARN != ''
     runs-on: ubuntu-latest
     environment: aft-mgmt
     timeout-minutes: 15
