@@ -255,6 +255,15 @@ phase_b() {
     render_to "$TPL/tenant/_defaults.yaml.tmpl"             "$out/$tenant/_defaults.yaml"
     render_to "$TPL/tenant/region.yaml.tmpl"                "$out/$tenant/dev/$region.yaml"
 
+    # Remove shipped example trees: they collide on stack name (e.g. plat-use1-dev)
+    # with any namespace that follows the documented tenant/stage convention.
+    for ex in "$REPO/stacks/orgs/example-accounts" "$REPO/stacks/orgs/example-accounts-single"; do
+        if [[ -d "$ex" ]]; then
+            run rm -rf "$ex"
+            plan_lines+=("remove $ex (collides with namespace stacks)")
+        fi
+    done
+
     if [[ $DRY_RUN -eq 1 ]]; then
         echo; echo "=== plan ==="; printf '%s\n' "${plan_lines[@]}"
         return 0
@@ -266,7 +275,7 @@ phase_b() {
 
     local branch="bootstrap/${ns}-init"
     git -C "$REPO" checkout -B "$branch"
-    git -C "$REPO" add "stacks/orgs/$ns"
+    git -C "$REPO" add -A "stacks/orgs"
     git -C "$REPO" commit -m "bootstrap($ns): initial scaffold"
     git -C "$REPO" push -u origin "$branch"
     local pr_rc=0
