@@ -74,9 +74,32 @@ runs:
         terraform_wrapper: false
 
     - name: Install Atmos
-      uses: cloudposse/github-action-setup-atmos@822766b3aaa9a3b4aa2628baaccb58dd576ad0ff # v2.0.0
-      with:
-        atmos-version: ${{ steps.resolve.outputs.atmos_version }}
+      shell: bash
+      env:
+        ATMOS_VERSION: ${{ steps.resolve.outputs.atmos_version }}
+      run: |
+        set -euo pipefail
+        if command -v atmos >/dev/null 2>&1 && atmos version 2>&1 | grep -q "$ATMOS_VERSION"; then
+          exit 0
+        fi
+        os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+        arch="$(uname -m)"
+        case "$arch" in
+          x86_64) arch=amd64 ;;
+          aarch64|arm64) arch=arm64 ;;
+          *) echo "unsupported arch $arch" >&2; exit 1 ;;
+        esac
+        url="https://github.com/cloudposse/atmos/releases/download/v${ATMOS_VERSION}/atmos_${ATMOS_VERSION}_${os}_${arch}"
+        for i in 1 2 3; do
+          if curl -fsSL -o "$RUNNER_TEMP/atmos" "$url"; then
+            break
+          fi
+          echo "atmos download attempt $i failed, retrying..." >&2
+          sleep 2
+        done
+        chmod +x "$RUNNER_TEMP/atmos"
+        sudo mv "$RUNNER_TEMP/atmos" /usr/local/bin/atmos
+        atmos version
 
     - name: Restore Atmos + .terraform cache
       if: inputs.cache == 'true'
