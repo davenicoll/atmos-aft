@@ -116,7 +116,11 @@ runs:
           exit 1
         fi
 
-        if [[ -n "$account_id" ]]; then
+        # require_target=false means "central-only component - don't construct
+        # a target_role_arn even if account_id resolves." Skips the
+        # cross-account assume in the component's provider block, so the
+        # component runs under the caller's identity (the central role).
+        if [[ "$REQUIRE_TARGET" == "true" && -n "$account_id" ]]; then
           target_role_arn="arn:aws:iam::${account_id}:role/${TARGET_ROLE_NAME}"
         else
           target_role_arn=""
