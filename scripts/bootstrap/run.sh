@@ -67,6 +67,26 @@ need gh
 need git
 need terraform
 
+# Confirm gh is authenticated. Per-repo write-access check happens after
+# Phase A captures github_org/github_repo (verify_gh_repo_access).
+gh auth status --hostname github.com >/dev/null 2>&1 \
+    || die "gh is not authenticated. Run 'gh auth login' as a user with write access to the deployment repo, then re-run."
+
+# Confirm the active gh account has push access to <github_org>/<github_repo>
+# from the captured answers. Called at end of Phase A.
+verify_gh_repo_access() {
+    local org repo perm active
+    org=$(aget github_org); repo=$(aget github_repo)
+    [[ -n "$org" && -n "$repo" ]] || return 0
+    active=$(gh auth status --hostname github.com 2>&1 | awk '/Active account: true/{getline; sub(/.*account /,""); sub(/ .*/,""); print; exit}' || true)
+    if ! perm=$(gh api "repos/$org/$repo" --jq '.permissions.push' 2>/dev/null); then
+        die "gh ($active) cannot read $org/$repo. Switch accounts with 'gh auth switch', then re-run."
+    fi
+    if [[ "$perm" != "true" ]]; then
+        die "gh active account ($active) lacks push access to $org/$repo. Switch with 'gh auth switch', then re-run."
+    fi
+}
+
 # Validate an answer (key, value) against the regex declared in questions.yaml.
 # No-op if the question has no `validate` field.
 validate_answer() {
@@ -232,6 +252,11 @@ phase_a() {
     aput separate_aft_mgmt_account "$([[ "$topology_val" == "separate" ]] && echo true || echo false)"
     aput example_tenant "plat"
     aput example_tenant_title "Plat"
+
+    # Now that github_org / github_repo are known, confirm the active gh
+    # account can push to the deployment repo. Phases B/C/D all need write
+    # access (PR open, repo var set, workflow dispatch).
+    verify_gh_repo_access
 }
 
 render_tpl() { ANSWERS="$ANSWERS_BUF" "$RENDER" <"$1"; }
@@ -441,6 +466,20 @@ phase_c() {
     else
         run atmos terraform apply iam-deployment-roles/central -s "$central_stack" -- -auto-approve
     fi
+
+    # 4. Publish GHA repo variables that downstream workflows depend on.
+    # Values are deterministic from Phase A answers and the role names the
+    # central component creates - safe to (re)set on every Phase C run.
+    local gh_org gh_repo region auth_mode central_arn plan_only_arn
+    gh_org=$(aget github_org); gh_repo=$(aget github_repo)
+    region=$(aget primary_region); auth_mode=$(aget aws_auth_mode)
+    central_arn="arn:aws:iam::${acct_id}:role/AtmosCentralDeploymentRole"
+    plan_only_arn="arn:aws:iam::${acct_id}:role/AtmosPlanOnlyRole"
+    echo "phase C: publishing GHA repo vars on $gh_org/$gh_repo" >&2
+    run gh variable set ATMOS_CENTRAL_ROLE_ARN  --repo "$gh_org/$gh_repo" --body "$central_arn"
+    run gh variable set ATMOS_PLAN_ONLY_ROLE_ARN --repo "$gh_org/$gh_repo" --body "$plan_only_arn"
+    run gh variable set AWS_REGION              --repo "$gh_org/$gh_repo" --body "$region"
+    run gh variable set AFT_AUTH_MODE           --repo "$gh_org/$gh_repo" --body "$auth_mode"
 }
 
 # ---------- Phase D: dispatch fleet bootstrap ----------
