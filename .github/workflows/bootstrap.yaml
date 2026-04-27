@@ -146,7 +146,7 @@ jobs:
 
   central-roles:
     name: 3. iam-deployment-roles/central
-    needs: oidc-provider
+    needs: [precheck, oidc-provider]
     uses: ./.github/workflows/_atmos-apply.yaml
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
@@ -156,7 +156,7 @@ jobs:
 
   tfstate-backend-aft-mgmt:
     name: 4. tfstate-backend (aft-mgmt)
-    needs: central-roles
+    needs: [precheck, central-roles]
     uses: ./.github/workflows/_atmos-apply.yaml
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
@@ -166,7 +166,7 @@ jobs:
 
   stamp-roles-ct-mgmt:
     name: 5a. stamp AtmosDeploymentRole (CT-mgmt)
-    needs: tfstate-backend-aft-mgmt
+    needs: [precheck, tfstate-backend-aft-mgmt]
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
       stack: ${{ needs.precheck.outputs.ct_mgmt_stack }}
@@ -175,7 +175,7 @@ jobs:
 
   stamp-roles-aft-mgmt:
     name: 5b. stamp AtmosDeploymentRole (AFT-mgmt)
-    needs: stamp-roles-ct-mgmt
+    needs: [precheck, stamp-roles-ct-mgmt]
     if: inputs.separate_aft_mgmt_account == true
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
@@ -185,7 +185,7 @@ jobs:
 
   stamp-roles-audit:
     name: 5c. stamp AtmosDeploymentRole (audit)
-    needs: [stamp-roles-ct-mgmt, stamp-roles-aft-mgmt]
+    needs: [precheck, stamp-roles-ct-mgmt, stamp-roles-aft-mgmt]
     if: always() && needs.stamp-roles-ct-mgmt.result == 'success' && (needs.stamp-roles-aft-mgmt.result == 'success' || needs.stamp-roles-aft-mgmt.result == 'skipped')
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
@@ -195,7 +195,7 @@ jobs:
 
   stamp-roles-log-archive:
     name: 5d. stamp AtmosDeploymentRole (log-archive)
-    needs: stamp-roles-audit
+    needs: [precheck, stamp-roles-audit]
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
       stack: ${{ needs.precheck.outputs.log_archive_stack }}
@@ -204,7 +204,7 @@ jobs:
 
   stamp-tfstate-ct-mgmt:
     name: 6a. stamp tfstate-backend (CT-mgmt)
-    needs: stamp-roles-log-archive
+    needs: [precheck, stamp-roles-log-archive]
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
       stack: ${{ needs.precheck.outputs.ct_mgmt_stack }}
@@ -213,7 +213,7 @@ jobs:
 
   stamp-tfstate-aft-mgmt:
     name: 6b. stamp tfstate-backend (AFT-mgmt)
-    needs: stamp-tfstate-ct-mgmt
+    needs: [precheck, stamp-tfstate-ct-mgmt]
     if: inputs.separate_aft_mgmt_account == true
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
@@ -223,7 +223,7 @@ jobs:
 
   stamp-tfstate-audit:
     name: 6c. stamp tfstate-backend (audit)
-    needs: [stamp-tfstate-ct-mgmt, stamp-tfstate-aft-mgmt]
+    needs: [precheck, stamp-tfstate-ct-mgmt, stamp-tfstate-aft-mgmt]
     if: always() && needs.stamp-tfstate-ct-mgmt.result == 'success' && (needs.stamp-tfstate-aft-mgmt.result == 'success' || needs.stamp-tfstate-aft-mgmt.result == 'skipped')
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
@@ -233,7 +233,7 @@ jobs:
 
   stamp-tfstate-log-archive:
     name: 6d. stamp tfstate-backend (log-archive)
-    needs: stamp-tfstate-audit
+    needs: [precheck, stamp-tfstate-audit]
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
       stack: ${{ needs.precheck.outputs.log_archive_stack }}
@@ -242,7 +242,7 @@ jobs:
 
   security-guardduty:
     name: 7a. security-service bootstrap (guardduty)
-    needs: stamp-tfstate-log-archive
+    needs: [precheck, stamp-tfstate-log-archive]
     uses: ./.github/workflows/_apply-security-service.yaml
     with:
       service: guardduty
@@ -254,7 +254,7 @@ jobs:
 
   security-security-hub:
     name: 7b. security-service bootstrap (security-hub)
-    needs: security-guardduty
+    needs: [precheck, security-guardduty]
     uses: ./.github/workflows/_apply-security-service.yaml
     with:
       service: security-hub
@@ -266,7 +266,7 @@ jobs:
 
   security-inspector2:
     name: 7c. security-service bootstrap (inspector2)
-    needs: security-security-hub
+    needs: [precheck, security-security-hub]
     uses: ./.github/workflows/_apply-security-service.yaml
     with:
       service: inspector2
