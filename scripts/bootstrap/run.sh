@@ -160,8 +160,10 @@ persist_answers_cache() {
         while IFS= read -r key; do
             [[ -z "$key" ]] && continue
             local val; val=$(aget "$key")
-            # YAML-safe single-quoted scalar (escape ' as '').
-            printf "  %s: '%s'\n" "$key" "${val//\'/\'\'}"
+            # YAML-safe double-quoted scalar (escape \ as \\ and " as \").
+            local escaped="${val//\\/\\\\}"
+            escaped="${escaped//\"/\\\"}"
+            printf '  %s: "%s"\n' "$key" "$escaped"
         done < <(yq -r '.questions[].key' "$QS")
     } > "$path"
     echo "phase A: cached answers to ${path#$REPO/} (delete to re-prompt next run)" >&2
