@@ -31,26 +31,23 @@ jobs:
   precheck:
     name: precheck CT core accounts ACTIVE
     runs-on: ubuntu-latest
-    environment: bootstrap
+    # AtmosCentralDeploymentRole's trust policy allows GitHub OIDC for
+    # environment={aft-mgmt,core,vended} - 'aft-mgmt' is the canonical
+    # central-account environment in the role-trust contract.
+    environment: aft-mgmt
     timeout-minutes: 10
     outputs:
       aft_mgmt_stack: ${{ steps.resolve.outputs.aft_mgmt_stack }}
       ct_mgmt_stack: ${{ steps.resolve.outputs.ct_mgmt_stack }}
       audit_stack: ${{ steps.resolve.outputs.audit_stack }}
       log_archive_stack: ${{ steps.resolve.outputs.log_archive_stack }}
-    env:
-      # Bootstrap predates AtmosCentralDeploymentRole's existence, so the
-      # composite action's `access_key` path reads these to assume the
-      # central role from a long-lived bootstrap user.
-      AFT_BOOTSTRAP_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AFT_BOOTSTRAP_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
       - uses: ./.github/actions/setup-atmos
       - uses: ./.github/actions/configure-aws
         with:
-          mode: access_key
-          central_role_arn: arn:aws:iam::${{ inputs.aft_mgmt_account_id }}:role/AtmosCentralDeploymentRole
+          mode: ${{ vars.AFT_AUTH_MODE || 'oidc' }}
+          central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}
           region: ${{ inputs.aft_mgmt_region }}
           role_session_name: atmos-bootstrap-precheck
       - id: resolve
