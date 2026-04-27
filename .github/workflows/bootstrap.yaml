@@ -59,11 +59,18 @@ jobs:
           # There is exactly one stack per CT core class; fail loudly otherwise.
           stacks_json="$(atmos describe stacks --format json)"
 
+          # 'atmos describe stacks --format json' has no top-level vars block;
+          # vars propagate to each component. Pick any component and read its
+          # vars.account_class - they all carry the stack-level value.
           resolve_stack() {
             local class="$1"
             local matches
-            matches=$(echo "$stacks_json" | jq -r --arg c "$class" \
-              'to_entries[] | select(.value.vars.account_class == $c) | .key')
+            matches=$(echo "$stacks_json" | jq -r --arg c "$class" '
+              to_entries[]
+              | ((.value.components.terraform | to_entries) // [])[0].value.vars.account_class as $cls
+              | select($cls == $c)
+              | .key
+            ')
             local count
             count=$(echo "$matches" | grep -c . || true)
             if [[ "$count" -ne 1 ]]; then
@@ -93,10 +100,15 @@ jobs:
             echo "log_archive_stack=$log_archive_stack"
           } >> "$GITHUB_OUTPUT"
 
-          audit_id=$(echo "$stacks_json" | jq -r --arg s "$audit_stack" \
-            '.[$s].settings.audit_account_id // .[$s].vars.account_id // empty')
-          log_archive_id=$(echo "$stacks_json" | jq -r --arg s "$log_archive_stack" \
-            '.[$s].settings.log_archive_account_id // .[$s].vars.account_id // empty')
+          # account_id and settings.* are merged into each component; pick any.
+          audit_id=$(echo "$stacks_json" | jq -r --arg s "$audit_stack" '
+            .[$s].components.terraform | to_entries[0].value
+            | (.settings.audit_account_id // .vars.account_id // empty)
+          ')
+          log_archive_id=$(echo "$stacks_json" | jq -r --arg s "$log_archive_stack" '
+            .[$s].components.terraform | to_entries[0].value
+            | (.settings.log_archive_account_id // .vars.account_id // empty)
+          ')
           if [[ -z "$audit_id" || -z "$log_archive_id" ]]; then
             echo "::error::could not resolve audit/log-archive account IDs from stack settings"
             exit 1
