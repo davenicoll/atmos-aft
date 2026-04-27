@@ -5,6 +5,12 @@ terraform:
   backend_type: s3
   backend:
     s3:
+      # Bucket pattern: {tenant}-{environment}-{stage}-{account_id}.
+      # Each stack's bucket lives in its own target account (vars.account_id),
+      # created by tfstate-backend-central for the central stack and by
+      # tfstate-backend for each vended account.
+      bucket: '{{ .vars.tenant }}-{{ .vars.environment }}-{{ .vars.stage }}-{{ .vars.account_id }}'
+      key: '{{ .stack }}/{{ .component }}/terraform.tfstate'
       region: us-east-1
       encrypt: true
       use_lockfile: true

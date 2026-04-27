@@ -5,3 +5,5 @@ components:
         component: tfstate-backend
       vars:
         aft_mgmt_account_id: !template "{{ .settings.aft_mgmt_account_id }}"
+        # Must match terraform.backend.s3.bucket from stacks/orgs/_defaults.yaml.
+        bucket_name_override: !template "{{ .vars.tenant }}-{{ .vars.environment }}-{{ .vars.stage }}-{{ .vars.account_id }}"

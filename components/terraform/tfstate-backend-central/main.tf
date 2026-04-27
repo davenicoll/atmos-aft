@@ -3,7 +3,7 @@ data "aws_partition" "current" {}
 locals {
   enabled = module.this.enabled
 
-  bucket_name = "atmos-tfstate-bootstrap-${var.aft_mgmt_account_id}-${var.region}"
+  bucket_name = var.bucket_name
   kms_alias   = "alias/atmos-tfstate-bootstrap"
 
   central_role_principal = "arn:${data.aws_partition.current.partition}:iam::${var.aft_mgmt_account_id}:role/AtmosCentralDeploymentRole"

@@ -13,6 +13,16 @@ variable "aft_mgmt_account_id" {
   }
 }
 
+variable "bucket_name" {
+  type        = string
+  description = "Name of the central bootstrap S3 bucket. Must match the bucket configured in terraform.backend.s3.bucket for the central stack so terraform state writes land in the bucket this component creates."
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.bucket_name))
+    error_message = "bucket_name must be a valid S3 bucket name (3-63 chars, lowercase, digits, hyphens, dots)."
+  }
+}
+
 variable "target_role_arn" {
   type        = string
   default     = ""

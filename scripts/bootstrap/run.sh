@@ -396,31 +396,42 @@ phase_c() {
 
     echo "phase C: applying central components to $central_stack" >&2
 
-    # 1. github-oidc-provider — skip if present.
-    local gh_host="token.actions.githubusercontent.com" oidc_arn="" acct_id
+    # Bucket name pattern matches stacks/orgs/_defaults.yaml backend.s3.bucket
+    # template: {tenant}-{environment}-{stage}-{account_id}.
+    local tenant_v env_v stage_v acct_id bucket
+    tenant_v=$(yq -r '.vars.tenant' "$REPO/stacks/mixins/tenant/core.yaml" 2>/dev/null || echo core)
+    env_v=$(yq -r '.vars.environment' "$REPO/stacks/mixins/region/global.yaml" 2>/dev/null || echo gbl)
+    stage_v=$(yq -r '.vars.stage' "$REPO/stacks/mixins/stage/mgmt.yaml" 2>/dev/null || echo mgmt)
     acct_id=$(aget aft_mgmt_account_id)
+    bucket="${tenant_v}-${env_v}-${stage_v}-${acct_id}"
+
+    # 1. tfstate-backend-central — must run first to create the central state
+    # bucket. First apply uses -backend=false (state stays local); a follow-up
+    # 'init -migrate-state' lifts it into the freshly-created S3 bucket.
+    if [[ $DRY_RUN -eq 0 ]] && aws s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
+        echo "  skip: tfstate-backend-central bucket $bucket already present" >&2
+    else
+        echo "  apply: tfstate-backend-central (local backend, creates s3://$bucket)" >&2
+        run atmos terraform init tfstate-backend-central -s "$central_stack" -- -backend=false
+        run atmos terraform apply tfstate-backend-central -s "$central_stack" -- -auto-approve
+    fi
+    # Re-init with the now-existing S3 backend; migrates local state on first run.
+    run atmos terraform init tfstate-backend-central -s "$central_stack" -- -reconfigure -migrate-state -input=false -force-copy
+
+    # 2. github-oidc-provider — skip if present.
+    local gh_host="token.actions.githubusercontent.com" oidc_arn=""
     oidc_arn="arn:aws:iam::${acct_id}:oidc-provider/${gh_host}"
     if [[ $DRY_RUN -eq 0 ]] && aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$oidc_arn" >/dev/null 2>&1; then
-        echo "  skip: github-oidc-provider already present"
+        echo "  skip: github-oidc-provider already present" >&2
     else
         run atmos terraform apply github-oidc-provider -s "$central_stack" -- -auto-approve
     fi
 
-    # 2. iam-deployment-roles/central — skip if AtmosCentralDeploymentRole already exists.
+    # 3. iam-deployment-roles/central — skip if AtmosCentralDeploymentRole already exists.
     if [[ $DRY_RUN -eq 0 ]] && aws iam get-role --role-name AtmosCentralDeploymentRole >/dev/null 2>&1; then
-        echo "  skip: AtmosCentralDeploymentRole already present"
+        echo "  skip: AtmosCentralDeploymentRole already present" >&2
     else
         run atmos terraform apply iam-deployment-roles/central -s "$central_stack" -- -auto-approve
-    fi
-
-    # 3. tfstate-backend-central — init-reconfigure to migrate local→S3 if needed, then apply.
-    local bucket="${ns}-aft-mgmt-tfstate-${region}"
-    if [[ $DRY_RUN -eq 0 ]] && aws s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
-        echo "  skip: tfstate-backend-central bucket $bucket already present (still reconfiguring backend)"
-        run atmos terraform init tfstate-backend-central -s "$central_stack" -- -reconfigure -migrate-state
-    else
-        run atmos terraform init tfstate-backend-central -s "$central_stack" -- -reconfigure -migrate-state
-        run atmos terraform apply tfstate-backend-central -s "$central_stack" -- -auto-approve
     fi
 }
 
