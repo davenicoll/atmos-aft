@@ -276,10 +276,15 @@ phase_b() {
     }
 
     render_to "$TPL/_defaults.yaml.tmpl"                    "$out/_defaults.yaml"
-    render_to "$TPL/core/ct-mgmt/_defaults.yaml.tmpl"       "$out/core/ct-mgmt/_defaults.yaml"
-    render_to "$TPL/core/aft-mgmt/_defaults.yaml.tmpl"      "$out/core/aft-mgmt/_defaults.yaml"
-    render_to "$TPL/core/audit/_defaults.yaml.tmpl"         "$out/core/audit/_defaults.yaml"
-    render_to "$TPL/core/log-archive/_defaults.yaml.tmpl"   "$out/core/log-archive/_defaults.yaml"
+    # Core-account stack files are named gbl.yaml (not _defaults.yaml) so
+    # they are picked up by atmos stack discovery — _defaults.yaml is in
+    # excluded_paths in atmos.yaml.
+    render_to "$TPL/core/ct-mgmt/gbl.yaml.tmpl"             "$out/core/ct-mgmt/gbl.yaml"
+    render_to "$TPL/core/audit/gbl.yaml.tmpl"               "$out/core/audit/gbl.yaml"
+    render_to "$TPL/core/log-archive/gbl.yaml.tmpl"         "$out/core/log-archive/gbl.yaml"
+    if [[ "$(aget topology)" == "separate" ]]; then
+        render_to "$TPL/core/aft-mgmt/gbl.yaml.tmpl"        "$out/core/aft-mgmt/gbl.yaml"
+    fi
     local tenant region
     tenant=$(aget example_tenant); region=$(aget primary_region)
     render_to "$TPL/tenant/_defaults.yaml.tmpl"             "$out/$tenant/_defaults.yaml"
@@ -288,7 +293,7 @@ phase_b() {
     # Single-account topology: fold the AFT-central catalogs into ct-mgmt
     # so 'core-gbl-mgmt' becomes the central stack (no separate aft-mgmt).
     if [[ "$(aget topology)" == "single" && $DRY_RUN -eq 0 ]]; then
-        local ctmgmt="$out/core/ct-mgmt/_defaults.yaml"
+        local ctmgmt="$out/core/ct-mgmt/gbl.yaml"
         if [[ -f "$ctmgmt" ]] && ! grep -q 'tfstate-backend-central' "$ctmgmt"; then
             local tmp; tmp=$(mktemp)
             awk '
