@@ -44,8 +44,11 @@ jobs:
         run: terraform fmt -check -recursive components/terraform
       - name: terraform validate (per component)
         shell: bash
+        env:
+          TF_PLUGIN_CACHE_DIR: ${{ runner.temp }}/tf-plugin-cache
         run: |
           set -euo pipefail
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
           failures=()
           while IFS= read -r dir; do
             echo "::group::$dir"
