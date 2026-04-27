@@ -73,10 +73,18 @@ jobs:
             echo "$matches"
           }
 
-          aft_mgmt_stack=$(resolve_stack aft-mgmt)
           ct_mgmt_stack=$(resolve_stack ct-mgmt)
           audit_stack=$(resolve_stack audit)
           log_archive_stack=$(resolve_stack log-archive)
+          # In single-account topology (separate_aft_mgmt_account=false) there
+          # is no aft-mgmt stack; ct-mgmt absorbs the AFT-central catalogs and
+          # acts as the central stack. In separate topology there's a real
+          # stack with account_class=aft-mgmt.
+          if [[ "${{ inputs.separate_aft_mgmt_account }}" == "true" ]]; then
+            aft_mgmt_stack=$(resolve_stack aft-mgmt)
+          else
+            aft_mgmt_stack="$ct_mgmt_stack"
+          fi
 
           {
             echo "aft_mgmt_stack=$aft_mgmt_stack"
