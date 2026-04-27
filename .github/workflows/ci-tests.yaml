@@ -28,6 +28,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-atmos
       - uses: ./.github/actions/install-gha-cli-deps
       - uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4.1.1
@@ -42,12 +44,56 @@ jobs:
       - name: terraform fmt -check -recursive
         shell: bash
         run: terraform fmt -check -recursive components/terraform
+      - name: compute target component dirs
+        id: targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          all_dirs() {
+            find components/terraform -type f -name '*.tf' -not -path '*/.terraform/*' \
+              -exec dirname {} \; | sort -u
+          }
+          targets="$RUNNER_TEMP/targets.txt"
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            all_dirs > "$targets"
+            echo "scope: full (${{ github.event_name }})"
+          else
+            base_ref="${{ github.base_ref }}"
+            changed=$(git diff --name-only "origin/$base_ref"...HEAD || true)
+            if echo "$changed" | grep -qE '^(vendor\.yaml|atmos\.yaml|\.github/(actions|workflows)/|tflint\.hcl)'; then
+              all_dirs > "$targets"
+              echo "scope: full (trip-wire path changed)"
+            else
+              : > "$targets"
+              while IFS= read -r f; do
+                [[ -z "$f" || "$f" != components/terraform/* ]] && continue
+                d="$(dirname "$f")"
+                while [[ "$d" == components/terraform/* ]]; do
+                  if compgen -G "$d/*.tf" >/dev/null; then
+                    echo "$d" >> "$targets"
+                    break
+                  fi
+                  d="$(dirname "$d")"
+                done
+              done <<< "$changed"
+              sort -u "$targets" -o "$targets"
+              echo "scope: changed ($(wc -l < "$targets") component(s))"
+            fi
+          fi
+          if [[ -s "$targets" ]]; then
+            echo "--- targets ---"; cat "$targets"
+          else
+            echo "no component dirs to validate/lint"
+          fi
+          echo "list_file=$targets" >> "$GITHUB_OUTPUT"
       - name: terraform validate (per component)
         shell: bash
         env:
           TF_PLUGIN_CACHE_DIR: ${{ runner.temp }}/tf-plugin-cache
+          LIST_FILE: ${{ steps.targets.outputs.list_file }}
         run: |
           set -euo pipefail
+          [[ -s "$LIST_FILE" ]] || { echo "no components to validate"; exit 0; }
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
           failures=()
           while IFS= read -r dir; do
@@ -56,20 +102,23 @@ jobs:
               failures+=("$dir")
             fi
             echo "::endgroup::"
-          done < <(find components/terraform -type f -name '*.tf' -not -path '*/.terraform/*' -exec dirname {} \; | sort -u)
+          done < "$LIST_FILE"
           if [[ ${#failures[@]} -gt 0 ]]; then
             printf '::error::terraform validate failed in:\n%s\n' "${failures[@]}"
             exit 1
           fi
       - name: tflint
         shell: bash
+        env:
+          LIST_FILE: ${{ steps.targets.outputs.list_file }}
         run: |
           set -euo pipefail
+          [[ -s "$LIST_FILE" ]] || { echo "no components to lint"; exit 0; }
           while IFS= read -r dir; do
             echo "::group::$dir"
             (cd "$dir" && tflint --minimum-failure-severity=warning) || exit 1
             echo "::endgroup::"
-          done < <(find components/terraform -type f -name '*.tf' -not -path '*/.terraform/*' -exec dirname {} \; | sort -u)
+          done < "$LIST_FILE"
       - name: terraform test (plan-only, per component with tests/)
         shell: bash
         # Delegate to the Makefile target so local + CI semantics stay in
