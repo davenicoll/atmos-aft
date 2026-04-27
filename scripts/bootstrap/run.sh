@@ -245,14 +245,14 @@ phase_b() {
 
     if [[ -f "$out/_defaults.yaml" ]]; then
         if [[ $ASSUME_YES -eq 1 || -n "$ANSWERS_FILE" || $DRY_RUN -eq 1 ]]; then
-            echo "phase B: scaffold already present at stacks/orgs/$ns — skipping"
+            echo "phase B: scaffold already present at stacks/orgs/$ns — skipping" >&2
             return 0
         fi
         local choice
         choice=$(prompt_one rescaffold "Continue / rescaffold / abort" "continue" "continue rescaffold abort")
         case "$choice" in
             abort) exit 0 ;;
-            continue) echo "phase B: keeping existing scaffold"; return 0 ;;
+            continue) echo "phase B: keeping existing scaffold" >&2; return 0 ;;
             rescaffold)
                 if [[ $FORCE_RESCAFFOLD -eq 0 ]] && [[ -d "$out" ]] \
                     && [[ -n "$(git -C "$REPO" status --porcelain "$out" 2>/dev/null)" ]]; then
@@ -285,27 +285,18 @@ phase_b() {
     render_to "$TPL/tenant/_defaults.yaml.tmpl"             "$out/$tenant/_defaults.yaml"
     render_to "$TPL/tenant/region.yaml.tmpl"                "$out/$tenant/dev/$region.yaml"
 
-    # Remove shipped example trees: they collide on stack name (e.g. plat-use1-dev)
-    # with any namespace that follows the documented tenant/stage convention.
-    for ex in "$REPO/stacks/orgs/example-accounts" "$REPO/stacks/orgs/example-accounts-single"; do
-        if [[ -d "$ex" ]]; then
-            run rm -rf "$ex"
-            plan_lines+=("remove $ex (collides with namespace stacks)")
-        fi
-    done
-
     if [[ $DRY_RUN -eq 1 ]]; then
-        echo; echo "=== plan ==="; printf '%s\n' "${plan_lines[@]}"
+        { echo; echo "=== plan ==="; printf '%s\n' "${plan_lines[@]}"; } >&2
         return 0
     fi
     if [[ $SKIP_REMOTE -eq 1 ]]; then
-        echo "phase B: scaffold written under $out — --skip-remote: not committing/pushing"
+        echo "phase B: scaffold written under $out — --skip-remote: not committing/pushing" >&2
         return 0
     fi
 
     local branch="bootstrap/${ns}-init"
     git -C "$REPO" checkout -B "$branch"
-    git -C "$REPO" add -A "stacks/orgs"
+    git -C "$REPO" add "stacks/orgs/$ns"
     git -C "$REPO" commit -m "bootstrap($ns): initial scaffold"
     git -C "$REPO" push -u origin "$branch"
     local pr_rc=0
@@ -338,7 +329,7 @@ phase_b() {
         cat /tmp/pr-create.out
     fi
     echo
-    echo "PHASE B complete. Merge the PR, then re-run 'atmos bootstrap' to continue."
+    echo "PHASE B complete. Merge the PR, then re-run 'atmos bootstrap' to continue." >&2
     exit 0
 }
 
@@ -376,7 +367,7 @@ phase_c() {
         fi
     fi
 
-    echo "phase C: applying central components to $central_stack"
+    echo "phase C: applying central components to $central_stack" >&2
 
     # 1. github-oidc-provider — skip if present.
     local gh_host="token.actions.githubusercontent.com" oidc_arn="" acct_id
@@ -431,7 +422,7 @@ phase_d() {
                 epoch_then=$(date -u -d "$created_at" +%s)
             fi
             if (( epoch_now - epoch_then < 86400 )); then
-                echo "phase D: bootstrap.yaml succeeded within last 24h ($created_at) — offering skip"
+                echo "phase D: bootstrap.yaml succeeded within last 24h ($created_at) — offering skip" >&2
                 if [[ $ASSUME_YES -eq 1 ]] || ! has_tty; then return 0; fi
                 local c; c=$(prompt_one skip "Re-dispatch anyway?" "no" "yes no")
                 [[ "$c" == "yes" ]] || return 0
