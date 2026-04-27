@@ -136,20 +136,28 @@ commands:
     description: "End-to-end bootstrap: A gather · B scaffold+PR · C apply central · D dispatch fleet"
     flags:
       - name: answers
+        type: string
         usage: "Path to a YAML answer file; skips interactive prompts"
       - name: dry-run
+        type: bool
         usage: "Print plans + intended commands for every phase; execute nothing"
       - name: print-questions
+        type: bool
         usage: "Emit the answer-file schema on stdout and exit"
       - name: skip-remote
+        type: bool
         usage: "Write scaffold locally but skip branch/commit/PR"
       - name: yes
+        type: bool
         usage: "Non-interactive: auto-continue between phases"
       - name: phase
+        type: string
         usage: "Run only this phase (A|B|C|D)"
       - name: from
+        type: string
         usage: "Start at this phase"
       - name: to
+        type: string
         usage: "Stop after this phase"
     steps:
       - "bash scripts/bootstrap/run.sh {{ if .Flags.answers }}--answers {{ .Flags.answers }}{{ end }} {{ if index .Flags \"dry-run\" }}--dry-run{{ end }} {{ if index .Flags \"print-questions\" }}--print-questions{{ end }} {{ if index .Flags \"skip-remote\" }}--skip-remote{{ end }} {{ if .Flags.yes }}--yes{{ end }} {{ if .Flags.phase }}--phase {{ .Flags.phase }}{{ end }} {{ if .Flags.from }}--from {{ .Flags.from }}{{ end }} {{ if .Flags.to }}--to {{ .Flags.to }}{{ end }}"
