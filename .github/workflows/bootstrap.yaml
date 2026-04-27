@@ -157,6 +157,10 @@ jobs:
   tfstate-backend-aft-mgmt:
     name: 4. tfstate-backend (aft-mgmt)
     needs: [precheck, central-roles]
+    # Single-topology folds aft-mgmt into ct-mgmt, and tfstate-backend-central
+    # (applied in Phase C) already created the state bucket for that account.
+    # Only separate-topology needs a distinct per-account tfstate-backend here.
+    if: inputs.separate_aft_mgmt_account == true
     uses: ./.github/workflows/_atmos-apply.yaml
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
@@ -166,7 +170,9 @@ jobs:
 
   stamp-roles-ct-mgmt:
     name: 5a. stamp AtmosDeploymentRole (CT-mgmt)
-    needs: [precheck, tfstate-backend-aft-mgmt]
+    needs: [precheck, central-roles, tfstate-backend-aft-mgmt]
+    # tfstate-backend-aft-mgmt skips on single-topology; allow either result.
+    if: always() && needs.central-roles.result == 'success' && (needs.tfstate-backend-aft-mgmt.result == 'success' || needs.tfstate-backend-aft-mgmt.result == 'skipped')
     uses: ./.github/workflows/_bootstrap-target.yaml
     with:
       stack: ${{ needs.precheck.outputs.ct_mgmt_stack }}
