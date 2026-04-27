@@ -60,7 +60,7 @@ jobs:
           else
             base_ref="${{ github.base_ref }}"
             changed=$(git diff --name-only "origin/$base_ref"...HEAD || true)
-            if echo "$changed" | grep -qE '^(vendor\.yaml|atmos\.yaml|\.github/(actions|workflows)/|tflint\.hcl)'; then
+            if echo "$changed" | grep -qE '^(vendor\.yaml|\.tflint\.hcl|tflint\.hcl)'; then
               all_dirs > "$targets"
               echo "scope: full (trip-wire path changed)"
             else
