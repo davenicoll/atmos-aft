@@ -77,7 +77,7 @@ validate_answer() {
     fi
 }
 
-has_tty() { [[ -t 0 && -t 1 ]]; }
+has_tty() { [[ -t 0 ]]; }
 use_gum() { has_tty && command -v gum >/dev/null 2>&1; }
 
 # Dry-run and non-dry-run command runner. In dry-run, print then return 0.
