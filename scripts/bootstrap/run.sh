@@ -512,39 +512,6 @@ phase_d() {
     gh_org=$(aget github_org); gh_repo=$(aget github_repo)
     gh_target="$gh_org/$gh_repo"
 
-    # bootstrap.yaml's first job uses mode=access_key (no AtmosCentralDeploymentRole
-    # is yet trusted by GitHub OIDC the very first time). It reads
-    # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY from repo secrets - if those are
-    # missing, the workflow fails on 'Could not load credentials from any
-    # providers'. Pre-flight before the dispatch.
-    if [[ $DRY_RUN -eq 0 ]]; then
-        local existing
-        existing=$(gh secret list --repo "$gh_target" --json name --jq '.[].name' 2>/dev/null || true)
-        if ! grep -qx 'AWS_ACCESS_KEY_ID' <<<"$existing" || ! grep -qx 'AWS_SECRET_ACCESS_KEY' <<<"$existing"; then
-            local prof key sec
-            prof="${AWS_PROFILE:-default}"
-            key=$(aws configure get aws_access_key_id --profile "$prof" 2>/dev/null || true)
-            sec=$(aws configure get aws_secret_access_key --profile "$prof" 2>/dev/null || true)
-            if [[ -z "$key" || -z "$sec" ]]; then
-                die "phase D: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY missing from $gh_target secrets and not resolvable from AWS profile '$prof'. Set them via 'gh secret set ... --repo $gh_target' or export AWS_PROFILE before re-running."
-            fi
-            local proceed
-            if [[ $ASSUME_YES -eq 1 ]] || ! has_tty; then
-                proceed=yes
-            else
-                echo "phase D: AWS_ACCESS_KEY_ID/SECRET not yet set on $gh_target." >&2
-                proceed=$(prompt_one bootstrap_keys "Set them from AWS profile '$prof' (key starts ${key:0:4}…)?" "yes" "yes no")
-            fi
-            if [[ "$proceed" == "yes" ]]; then
-                gh secret set AWS_ACCESS_KEY_ID     --repo "$gh_target" --body "$key"
-                gh secret set AWS_SECRET_ACCESS_KEY --repo "$gh_target" --body "$sec"
-                echo "phase D: bootstrap credentials published to $gh_target" >&2
-            else
-                die "phase D: aborted - set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY on $gh_target and re-run."
-            fi
-        fi
-    fi
-
     # Skip if a recent successful bootstrap run exists.
     if [[ $DRY_RUN -eq 0 ]]; then
         local last
