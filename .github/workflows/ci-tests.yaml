@@ -26,6 +26,8 @@ jobs:
     name: static (atmos + fmt + validate + tflint)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.tf-plugin-cache
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
         with:
@@ -89,7 +91,6 @@ jobs:
       - name: terraform validate (per component)
         shell: bash
         env:
-          TF_PLUGIN_CACHE_DIR: ${{ runner.temp }}/tf-plugin-cache
           LIST_FILE: ${{ steps.targets.outputs.list_file }}
         run: |
           set -euo pipefail
