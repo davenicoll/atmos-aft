@@ -58,3 +58,6 @@ credentials.json
 # Build output
 dist/
 build/
+
+# Cached answers from atmos bootstrap (Phase A). Local-only, regenerated each run.
+.bootstrap-answers.yaml
