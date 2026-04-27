@@ -122,10 +122,21 @@ jobs:
           done < "$LIST_FILE"
       - name: terraform test (plan-only, per component with tests/)
         shell: bash
-        # Delegate to the Makefile target so local + CI semantics stay in
-        # lockstep — when the iteration logic changes (e.g. adding a
-        # filter, surfacing per-component logs), only the Makefile moves.
-        run: make tf-test
+        env:
+          LIST_FILE: ${{ steps.targets.outputs.list_file }}
+        run: |
+          set -euo pipefail
+          [[ -s "$LIST_FILE" ]] || { echo "no components to test"; exit 0; }
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          ran=0
+          while IFS= read -r dir; do
+            [[ -d "$dir/tests" ]] || continue
+            ran=$((ran+1))
+            echo "::group::$dir"
+            (cd "$dir" && terraform init -backend=false -input=false > /dev/null && terraform test)
+            echo "::endgroup::"
+          done < "$LIST_FILE"
+          echo "ran terraform test in $ran component(s)"
 
   opa:
     name: opa (policy unit tests + conftest)
