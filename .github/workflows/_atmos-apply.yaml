@@ -34,6 +34,16 @@ on:
         required: false
         type: string
         default: ""
+      require_target:
+        description: >-
+          Set false for central-only components (github-oidc-provider,
+          iam-deployment-roles/central, tfstate-backend-central) that run
+          in the central account itself - skips the cross-account assume
+          into AtmosDeploymentRole, which doesn't yet exist on first
+          bootstrap.
+        required: false
+        type: string
+        default: "true"
     outputs:
       apply_status:
         description: "succeeded | failed"
@@ -71,6 +81,7 @@ jobs:
         with:
           stack: ${{ inputs.stack }}
           component: ${{ inputs.component }}
+          require_target: ${{ inputs.require_target }}
       - uses: ./.github/actions/configure-aws
         with:
           central_role_arn: ${{ vars.ATMOS_CENTRAL_ROLE_ARN }}

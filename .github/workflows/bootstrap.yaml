@@ -139,6 +139,9 @@ jobs:
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
       component: github-oidc-provider
+      # Central-only component: lives in the same account as the central role.
+      # No AtmosDeploymentRole assume - it doesn't exist yet during bootstrap.
+      require_target: "false"
     secrets: inherit
 
   central-roles:
@@ -148,6 +151,7 @@ jobs:
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
       component: iam-deployment-roles/central
+      require_target: "false"
     secrets: inherit
 
   tfstate-backend-aft-mgmt:
@@ -157,6 +161,7 @@ jobs:
     with:
       stack: ${{ needs.precheck.outputs.aft_mgmt_stack }}
       component: tfstate-backend
+      require_target: "false"
     secrets: inherit
 
   stamp-roles-ct-mgmt:
