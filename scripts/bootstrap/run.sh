@@ -119,15 +119,31 @@ phase_enabled() {
     (( p_idx >= from_idx && p_idx <= to_idx ))
 }
 
+phase_description() {
+    case "$1" in
+        A) echo "gather answers (interactive prompts or load cached .bootstrap-answers.yaml)" ;;
+        B) echo "render stack scaffold under stacks/orgs/<ns>/, commit on bootstrap/<ns>-init, open PR" ;;
+        C) echo "apply central components (tfstate-backend-central, github-oidc-provider, iam-deployment-roles/central) and publish GHA repo vars" ;;
+        D) echo "dispatch bootstrap.yaml on GitHub Actions to stamp AtmosDeploymentRole + tfstate-backend into every CT-core account" ;;
+        *) echo "" ;;
+    esac
+}
+
 confirm_continue() {
-    local phase="$1"
+    local phase="$1" desc
+    desc=$(phase_description "$phase")
     [[ $ASSUME_YES -eq 1 || $DRY_RUN -eq 1 ]] && return 0
     has_tty || return 0
-    local ans
-    if use_gum; then
-        gum confirm "Proceed to Phase $phase?" || return 1
+    local ans prompt
+    if [[ -n "$desc" ]]; then
+        prompt="Proceed to Phase $phase - $desc?"
     else
-        printf "Proceed to Phase %s? [Y/n] " "$phase" >&2
+        prompt="Proceed to Phase $phase?"
+    fi
+    if use_gum; then
+        gum confirm "$prompt" || return 1
+    else
+        printf "%s [Y/n] " "$prompt" >&2
         read -r ans
         [[ -z "$ans" || "$ans" =~ ^[Yy] ]] || return 1
     fi
