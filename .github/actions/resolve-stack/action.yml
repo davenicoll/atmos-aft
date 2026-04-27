@@ -2,7 +2,7 @@ name: resolve-stack
 description: >-
   Resolve an Atmos stack name to its account_id, region, target role ARN,
   and canonical stack name. Must run after setup-atmos. Does not require
-  AWS credentials — reads from atmos describe.
+  AWS credentials - reads from atmos describe.
 
 inputs:
   stack:
@@ -60,7 +60,7 @@ outputs:
     value: ${{ steps.resolve.outputs.stack_name }}
   bootstrap_role:
     description: >-
-      Bootstrap-identity role name from `vars.bootstrap_role` — pinned per
+      Bootstrap-identity role name from `vars.bootstrap_role` - pinned per
       account-class by `stacks/catalog/account-classes/*.yaml`
       (`AWSControlTowerExecution` for vended accounts,
       `OrganizationAccountAccessRole` for CT core accounts). Empty if the stack

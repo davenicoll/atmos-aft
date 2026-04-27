@@ -1,11 +1,11 @@
 # Verifies the supplementary CloudTrail trail contract: enable_logging
 # and enable_log_file_validation pinned on; multi-region and
 # global-service-events default OFF (the org trail managed by Control
-# Tower already covers those — overlap is wasteful and noisy);
+# Tower already covers those - overlap is wasteful and noisy);
 # kms_key_arn flows through; event_selectors flow through.
 #
 # Implementation note: the wrapped cloudposse/cloudtrail module exports
-# only cloudtrail_id / cloudtrail_arn / cloudtrail_home_region —
+# only cloudtrail_id / cloudtrail_arn / cloudtrail_home_region -
 # enable_logging, is_multi_region_trail, etc. are NOT surfaced as
 # outputs, and `module.X.<attr>` only resolves outputs in tftest. So
 # enable_logging / include_global_service_events / is_multi_region
@@ -52,7 +52,7 @@ run "ct_overlap_safe_defaults" {
   # CT-managed org trail (which is multi-region + includes IAM/STS).
   assert {
     condition     = var.multi_region == false
-    error_message = "Default multi_region must be false (CT org trail already covers this — overlap is wasteful)."
+    error_message = "Default multi_region must be false (CT org trail already covers this - overlap is wasteful)."
   }
 
   assert {
@@ -90,12 +90,12 @@ run "kms_key_arn_flows_through_when_set" {
 run "default_event_selectors_empty" {
   command = plan
 
-  # Stack YAML supplies S3/Lambda data event selectors when needed —
+  # Stack YAML supplies S3/Lambda data event selectors when needed -
   # the component default is empty so unconfigured stacks don't capture
   # data events by accident (each is a per-event billing item).
   assert {
     condition     = length(var.event_selectors) == 0
-    error_message = "Default event_selectors must be empty — concrete selectors come from stack YAML."
+    error_message = "Default event_selectors must be empty - concrete selectors come from stack YAML."
   }
 }
 

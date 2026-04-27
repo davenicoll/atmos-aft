@@ -31,9 +31,9 @@ Bootstrap identity for a newly vended account (jobs 3 and 4 of
 | Name | Required | Default | Description |
 |---|---|---|---|
 | `mode` | no | `$AFT_AUTH_MODE`, then `oidc` | Auth mode: `oidc` or `access_key`. Validated: only those two values accepted. |
-| `central_role_arn` | yes | — | ARN of `AtmosCentralDeploymentRole`. Validated against `^arn:aws:iam::[0-9]{12}:role/.+`. |
-| `target_role_arn` | no | — | When non-empty, exported as `TF_VAR_target_role_arn` so each component's provider `dynamic "assume_role"` block resolves to this role. Leave empty for components that stay in the central account. |
-| `region` | yes | — | AWS region. |
+| `central_role_arn` | yes | - | ARN of `AtmosCentralDeploymentRole`. Validated against `^arn:aws:iam::[0-9]{12}:role/.+`. |
+| `target_role_arn` | no | - | When non-empty, exported as `TF_VAR_target_role_arn` so each component's provider `dynamic "assume_role"` block resolves to this role. Leave empty for components that stay in the central account. |
+| `region` | yes | - | AWS region. |
 | `role_session_name` | no | `atmos-<workflow>-<run_id>` (truncated to 64 chars) | STS role session name. Auto-truncated to the STS 64-char limit. |
 | `identity` | no | `default` | Atmos auth identity: `default` (central → `AtmosDeploymentRole`) or `bootstrap` (central → `AWSControlTowerExecution`/`OrganizationAccountAccessRole`). Validated: only those two values accepted. |
 
@@ -63,6 +63,6 @@ credentials are written to `GITHUB_ENV` and masked in logs.
 `ATMOS_AUTH_IDENTITY` is set to the value of `identity` so Atmos's auth
 chain (see `atmos.yaml` `auth:` section) picks the right second-hop role:
 
-- `default` — central → `AtmosDeploymentRole` in the target account.
-- `bootstrap` — central → `AWSControlTowerExecution` (vended accounts) or
+- `default` - central → `AtmosDeploymentRole` in the target account.
+- `bootstrap` - central → `AWSControlTowerExecution` (vended accounts) or
   `OrganizationAccountAccessRole` (CT core accounts).

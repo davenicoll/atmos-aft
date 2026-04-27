@@ -43,7 +43,7 @@ resource "aws_servicecatalog_provisioned_product" "account" {
 
   lifecycle {
     # CT emits its own tags and may update certain fields on guardrail changes
-    # — ignore the noisy ones to keep drift clean.
+    # - ignore the noisy ones to keep drift clean.
     ignore_changes = [
       tags["aws:servicecatalog:provisioningPrincipalArn"],
       tags["aws:servicecatalog:provisioningArtifactIdentifier"],

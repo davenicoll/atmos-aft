@@ -3,7 +3,7 @@
 # fan-out shape.
 #
 # NOTE: This component does NOT expose an `allocation_default_netmask_length`
-# input on aws_vpc_ipam_pool.top — child accounts that want a default mask
+# input on aws_vpc_ipam_pool.top - child accounts that want a default mask
 # size for sub-pool allocations have to set it explicitly. We document the
 # absence here rather than fix it; see audit/2026-04 for context.
 
@@ -77,7 +77,7 @@ run "top_pool_does_not_set_allocation_default_netmask_length" {
   # adds the field is forced through a deliberate update of this test.
   assert {
     condition     = aws_vpc_ipam_pool.top[0].allocation_default_netmask_length == 0 || aws_vpc_ipam_pool.top[0].allocation_default_netmask_length == null
-    error_message = "Top-level pool must NOT set allocation_default_netmask_length (current behavior). Adding the field is a deliberate API change — update this test in lock-step."
+    error_message = "Top-level pool must NOT set allocation_default_netmask_length (current behavior). Adding the field is a deliberate API change - update this test in lock-step."
   }
 }
 

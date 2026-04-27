@@ -111,7 +111,7 @@ run "session_name_pinned_to_exact_values" {
     condition = !can(
       regex("\"AROA\\*:atmos-\\*\"", data.aws_iam_policy_document.deployment_trust.json)
     )
-    error_message = "deployment_trust must NOT allow the broader 'atmos-*' session-name glob — tighten to the exact session names."
+    error_message = "deployment_trust must NOT allow the broader 'atmos-*' session-name glob - tighten to the exact session names."
   }
 }
 

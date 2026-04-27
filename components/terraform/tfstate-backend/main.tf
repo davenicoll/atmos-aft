@@ -76,7 +76,7 @@ module "tfstate_backend" {
 
   s3_bucket_name = local.bucket_name
 
-  # S3 native locking — no DynamoDB. Requires Terraform >= 1.10.
+  # S3 native locking - no DynamoDB. Requires Terraform >= 1.10.
   dynamodb_enabled      = false
   s3_state_lock_enabled = true
 

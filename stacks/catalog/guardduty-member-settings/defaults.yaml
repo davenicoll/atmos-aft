@@ -1,4 +1,4 @@
-# Phase 3 — runs per-member. Member-side detector settings.
+# Phase 3 - runs per-member. Member-side detector settings.
 components:
   terraform:
     guardduty-member-settings:

@@ -32,12 +32,12 @@ run "single_region_and_termination_protection_defaults" {
 
   assert {
     condition     = aws_cloudtrail_event_data_store.this[0].termination_protection_enabled == true
-    error_message = "Termination protection must be enabled — the store holds 7y of audit data."
+    error_message = "Termination protection must be enabled - the store holds 7y of audit data."
   }
 
   assert {
     condition     = aws_cloudtrail_event_data_store.this[0].organization_enabled == false
-    error_message = "organization_enabled must be false — Atmos-AFT runs the store in the audit account, not the org root."
+    error_message = "organization_enabled must be false - Atmos-AFT runs the store in the audit account, not the org root."
   }
 }
 
@@ -66,7 +66,7 @@ run "default_kms_key_id_is_null_aws_managed" {
 run "advanced_event_selector_pins_four_event_sources" {
   command = plan
 
-  # field_selector is a set(object) — not addressable by index. Flatten
+  # field_selector is a set(object) - not addressable by index. Flatten
   # to a single map keyed by `field`, and verify membership of each
   # event-source alongside the eventCategory pin.
   assert {

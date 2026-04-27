@@ -1,4 +1,4 @@
-# Central bootstrap state bucket — lives in AFT-mgmt account only. Holds state
+# Central bootstrap state bucket - lives in AFT-mgmt account only. Holds state
 # for github-oidc-provider, iam-deployment-roles/central, account-provisioning,
 # and per-account bootstrap writes (see gha-design.md §5.8).
 components:

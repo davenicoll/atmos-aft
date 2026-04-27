@@ -81,7 +81,7 @@ run "three_function_map_produces_three_lambdas" {
     error_message = "Three entries in functions map must propagate."
   }
 
-  # All three keys must be present — guards against any silent filtering.
+  # All three keys must be present - guards against any silent filtering.
   assert {
     condition = alltrue([
       contains(keys(var.functions), "delete_default_vpc"),
@@ -112,7 +112,7 @@ run "optional_fields_apply_object_defaults" {
   #   log_retention_in_days = 90
   assert {
     condition     = var.functions["probe"].runtime == "python3.12"
-    error_message = "Default runtime must be python3.12 — the AFT-baseline runtime."
+    error_message = "Default runtime must be python3.12 - the AFT-baseline runtime."
   }
 
   assert {
@@ -132,10 +132,10 @@ run "optional_fields_apply_object_defaults" {
 
   assert {
     condition     = var.functions["probe"].log_retention_in_days == 90
-    error_message = "Default log_retention_in_days must be 90 — keeps Lambda log groups bounded."
+    error_message = "Default log_retention_in_days must be 90 - keeps Lambda log groups bounded."
   }
 
-  # Optional pointers that are null by default — the wrapper sets the
+  # Optional pointers that are null by default - the wrapper sets the
   # corresponding module input to null/empty when the per-function value is
   # null, so a non-null default would silently force a value through.
   assert {
@@ -150,7 +150,7 @@ run "optional_fields_apply_object_defaults" {
 
   assert {
     condition     = var.functions["probe"].policy_json == null
-    error_message = "Default policy_json must be null — opt-in inline IAM only."
+    error_message = "Default policy_json must be null - opt-in inline IAM only."
   }
 }
 

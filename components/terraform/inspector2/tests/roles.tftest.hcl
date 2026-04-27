@@ -1,4 +1,4 @@
-# Verifies the three role shapes — management | delegated | member — each
+# Verifies the three role shapes - management | delegated | member - each
 # instantiate the correct subset of aws_inspector2_* resources and nothing
 # else. Also covers variable validation on `role`.
 

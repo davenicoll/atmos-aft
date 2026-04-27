@@ -1,5 +1,5 @@
 # Verifies the `skip_on_ct_managed_account` count-gate on the CIS-1.2
-# submodule wrapper. Plan-only — no AWS credentials needed.
+# submodule wrapper. Plan-only - no AWS credentials needed.
 
 mock_provider "aws" {
   # The submodule looks up a region map by `data.aws_region.current.name`;
@@ -26,7 +26,7 @@ run "default_skips_on_ct_managed_account" {
 
   assert {
     condition     = length(module.cis_rules) == 0
-    error_message = "With skip_on_ct_managed_account=true (default), module.cis_rules must not be instantiated — the CIS-1.2 submodule would collide with CT's configuration recorder."
+    error_message = "With skip_on_ct_managed_account=true (default), module.cis_rules must not be instantiated - the CIS-1.2 submodule would collide with CT's configuration recorder."
   }
 }
 

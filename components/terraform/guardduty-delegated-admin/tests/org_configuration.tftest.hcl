@@ -1,4 +1,4 @@
-# Phase 2 — runs in the audit (delegated-admin) account. Owns the
+# Phase 2 - runs in the audit (delegated-admin) account. Owns the
 # org-wide aws_guardduty_organization_configuration plus detector-level
 # feature toggles delegated to the cloudposse/guardduty/aws module.
 
@@ -16,7 +16,7 @@ run "default_declares_detector_and_org_config" {
 
   assert {
     condition     = length(aws_guardduty_organization_configuration.this) == 1
-    error_message = "Phase 2 must declare exactly one aws_guardduty_organization_configuration — org-wide enable lives here, not in the wrapped module."
+    error_message = "Phase 2 must declare exactly one aws_guardduty_organization_configuration - org-wide enable lives here, not in the wrapped module."
   }
 
   assert {
@@ -43,7 +43,7 @@ run "feature_toggles_default_all_on" {
 
   # The wrapped cloudposse module only re-exports `guardduty_detector`,
   # `sns_topic`, and `sns_topic_subscriptions`, not its internal feature
-  # resources. Assert on var.X — these flags are passed straight through
+  # resources. Assert on var.X - these flags are passed straight through
   # to detector_feature count gates inside the module.
   assert {
     condition = alltrue([

@@ -39,7 +39,7 @@ run "parameters_map_renders_correctly" {
   }
 
   # The module-private transform builds `parameter_write`. We assert the
-  # `overwrite` field on the first entry is a bool, not a string — that is
+  # `overwrite` field on the first entry is a bool, not a string - that is
   # the regression-target for the tostring() fix.
   assert {
     condition = alltrue([
@@ -59,5 +59,5 @@ run "parameters_map_renders_correctly" {
 
 # Note: bool-vs-string on `overwrite` is caught by the variable type system
 # itself, which produces a hard type error rather than a soft validation
-# failure — those cannot be asserted via `expect_failures`. The bool type
+# failure - those cannot be asserted via `expect_failures`. The bool type
 # declaration in variables.tf is the regression guard.

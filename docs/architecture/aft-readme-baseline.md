@@ -2,7 +2,7 @@
 
 Mechanical extraction from `./reference/aft/README.md` (the `BEGIN_TF_DOCS` / `END_TF_DOCS` block and surrounding sections). Source-module attribution for outputs is derived from `./reference/aft/outputs.tf`.
 
-This is a working artifact for task #6 (README fidelity audit). No cross-referencing to atmos-aft design here — that is the audit's job when phase 2 lands a root README.
+This is a working artifact for task #6 (README fidelity audit). No cross-referencing to atmos-aft design here - that is the audit's job when phase 2 lands a root README.
 
 ---
 
@@ -40,7 +40,7 @@ All ten are local submodules (`./modules/...`), no pinned versions.
 | `aft_feature_options` | `./modules/aft-feature-options` | Post-provisioning feature toggles: `aft-feature-options` SFN + 3 Lambdas (`delete-default-vpc`, `enroll-support`, `enable-cloudtrail`). Log bucket in log-archive. |
 | `aft_iam_roles` | `./modules/aft-iam-roles` | Creates `AWSAFTAdmin` (aft-mgmt) and `AWSAFTExecution`/`AWSAFTService` in ct-management, log-archive, audit, aft-management. |
 | `aft_lambda_layer` | `./modules/aft-lambda-layer` | CodeBuild project that builds the `aft-common` Python layer; pre-apply trigger Lambda. |
-| `aft_ssm_parameters` | `./modules/aft-ssm-parameters` | Publishes ~50 SSM parameters under `/aft/config/*`, `/aft/account/*`, `/aft/resources/*` — the cross-component config plane. |
+| `aft_ssm_parameters` | `./modules/aft-ssm-parameters` | Publishes ~50 SSM parameters under `/aft/config/*`, `/aft/account/*`, `/aft/resources/*` - the cross-component config plane. |
 
 ---
 
@@ -66,7 +66,7 @@ All ten are local submodules (`./modules/...`), no pinned versions.
 | `global_customizations_repo_branch` | `string` | `"main"` | no | REPO | Branch. |
 | `account_customizations_repo_name` | `string` | `"aft-account-customizations"` | no | REPO | Repo for named per-account customization directories. |
 | `account_customizations_repo_branch` | `string` | `"main"` | no | REPO | Branch. |
-| `aft_framework_repo_url` | `string` | `"https://github.com/aws-ia/terraform-aws-control_tower_account_factory.git"` | no | FRAMEWORK | Source of AFT module itself — cloned by `aft-create-pipeline` and similar to render templates. |
+| `aft_framework_repo_url` | `string` | `"https://github.com/aws-ia/terraform-aws-control_tower_account_factory.git"` | no | FRAMEWORK | Source of AFT module itself - cloned by `aft-create-pipeline` and similar to render templates. |
 | `aft_framework_repo_git_ref` | `string` | `null` | no | FRAMEWORK | Git branch / ref for framework clone. `null` = module's default. |
 | `terraform_version` | `string` | `"1.6.0"` | no | TF-DIST | TF version installed in every buildspec. Published as SSM `/aft/config/terraform/version`. |
 | `terraform_distribution` | `string` | `"oss"` | no | TF-DIST | One of `oss`, `tfc`, `tfe`. Drives backend.jinja choice (S3 vs HCP) and OIDC trust policy wiring. |
@@ -110,7 +110,7 @@ All ten are local submodules (`./modules/...`), no pinned versions.
 
 ### 3.2 Sensitive inputs
 
-`terraform_token` — README explicitly notes state may contain it in plaintext.
+`terraform_token` - README explicitly notes state may contain it in plaintext.
 
 ---
 
@@ -195,7 +195,7 @@ Source: `value = var.<same>`. These simply expose the input for downstream conve
 | `aft_log_archive_exec_role_arn` | `module.aft_iam_roles.log_archive_exec_role_arn` | `AWSAFTExecution` in log-archive. |
 | `aft_audit_exec_role_arn` | `module.aft_iam_roles.audit_exec_role_arn` | `AWSAFTExecution` in audit. |
 | `aft_exec_role_arn` | `module.aft_iam_roles.aft_exec_role_arn` | `AWSAFTExecution` in aft-management. |
-| `aft_request_table_name` | `module.aft_account_request_framework.request_table_name` | `aft-request` DDB table — the request inbox. |
+| `aft_request_table_name` | `module.aft_account_request_framework.request_table_name` | `aft-request` DDB table - the request inbox. |
 | `aft_request_audit_table_name` | `module.aft_account_request_framework.request_audit_table_name` | `aft-request-audit` DDB table. |
 | `aft_request_metadata_table_name` | `module.aft_account_request_framework.request_metadata_table_name` | `aft-request-metadata` DDB table. |
 | `aft_controltower_events_table_name` | `module.aft_account_request_framework.controltower_events_table_name` | `aft-controltower-events` DDB table. |
@@ -214,7 +214,7 @@ Notable runtime primitives that exist in the stack but are **not** exposed as ro
 - `aft-account-provisioning-customizations` SFN ARN (customer-owned SFN; only provisioning-framework SFN is exposed).
 - `aft-account-request.fifo` SQS queue ARN/URL + its DLQ.
 - Custom EventBridge bus `aft-events-from-ct-management` ARN.
-- Per-account `${account_id}-customizations-pipeline` ARNs (dynamic, per-account — not addressable from root).
+- Per-account `${account_id}-customizations-pipeline` ARNs (dynamic, per-account - not addressable from root).
 - CodePipeline ARNs for `ct-aft-account-request` and `ct-aft-account-provisioning-customizations`.
 - CodeBuild project ARNs (`aft-global-customizations-terraform`, `aft-account-customizations-terraform`, `aft-create-pipeline`, `ct-aft-account-request`, `ct-aft-account-provisioning-customizations`).
 - The 6 account-request Lambdas and 3 customization Lambdas.
@@ -236,7 +236,7 @@ Notable runtime primitives that exist in the stack but are **not** exposed as ro
 Tracked observations that fed the Phase 2 [`archive/readme-audit.md`](archive/readme-audit.md) (archived) tables without needing to re-read the upstream README:
 
 - The README surfaces `terraform_oidc_integration`, but the descriptions of `terraform_oidc_aws_audience` and `terraform_oidc_hostname` refer to a non-existent `aft_feature_hcp_oidc` variable. Upstream doc bug; atmos-aft should document one toggle name and stick to it.
-- Every repo comes in pairs `{repo_name, repo_branch}`. Atmos-aft's factory config likely collapses these into a single object — note the expansion when auditing.
+- Every repo comes in pairs `{repo_name, repo_branch}`. Atmos-aft's factory config likely collapses these into a single object - note the expansion when auditing.
 - Outputs are a mix of trivial input echoes and real resource coordinates. Parity only matters for the latter (§5.2). Input-echo outputs are low value; atmos-aft can drop them without loss if the inputs are visible in stack config.
-- VPC inputs assume AFT owns the VPC; the BYO-VPC path (`aft_customer_vpc_id`) is "new deployments only" in upstream. Atmos-aft may reasonably drop the AFT-managed VPC entirely and always BYO — flag as scope cut.
+- VPC inputs assume AFT owns the VPC; the BYO-VPC path (`aft_customer_vpc_id`) is "new deployments only" in upstream. Atmos-aft may reasonably drop the AFT-managed VPC entirely and always BYO - flag as scope cut.
 - The fact that `terraform_token` is an input but also lives in SSM as SecureString means the audit must cover both surfaces: config plane input + runtime retrieval.

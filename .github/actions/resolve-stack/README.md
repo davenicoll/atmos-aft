@@ -33,8 +33,8 @@ With a component (resolves catalog vars):
 
 | Name | Required | Default | Description |
 |---|---|---|---|
-| `stack` | yes | — | Atmos stack name. |
-| `component` | no | — | Optional component name. When set, uses `atmos describe component` (which resolves catalog vars); otherwise `atmos describe stacks` reads stack-level vars only. |
+| `stack` | yes | - | Atmos stack name. |
+| `component` | no | - | Optional component name. When set, uses `atmos describe component` (which resolves catalog vars); otherwise `atmos describe stacks` reads stack-level vars only. |
 | `target_role_name` | no | `AtmosDeploymentRole` | Role name used when computing `target_role_arn`. Set to `AtmosDeploymentRoleReadOnly` for plan-only invocations (see `pr.yaml`, `drift-detection.yaml`). |
 | `require_target` | no | `true` | When `true`, fail if `vars.account_id` cannot be resolved. Set to `false` for central-only components (`iam-deployment-roles/central`, `tfstate-backend-central`, `github-oidc-provider`). With `false`, `account_id`, `account_name`, and `target_role_arn` are emitted empty. |
 

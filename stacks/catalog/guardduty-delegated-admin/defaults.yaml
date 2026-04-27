@@ -1,4 +1,4 @@
-# Phase 2 — runs in audit. Configures org-wide detector settings now that
+# Phase 2 - runs in audit. Configures org-wide detector settings now that
 # audit is the delegated admin. Must apply after guardduty-root (phase 1);
 # metadata.depends_on satisfies guardduty_phase_ordering.rego.
 components:

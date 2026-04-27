@@ -1,6 +1,6 @@
 # Mode A only: bespoke rotator Lambda that exchanges the App PEM for a
 # 1h installation token every 30 min. Not wired into Secrets Manager's
-# RotateSecret protocol — that protocol is for DB-credential atomic swaps,
+# RotateSecret protocol - that protocol is for DB-credential atomic swaps,
 # not "mint short-lived token from long-lived PEM". See gha-design.md §10.1.
 
 resource "aws_iam_role" "rotator" {
@@ -138,7 +138,7 @@ resource "aws_cloudwatch_metric_alarm" "rotator_errors" {
   tags = module.this.tags
 }
 
-# "Token secret not refreshed in > 35 min" — catches rotator silently
+# "Token secret not refreshed in > 35 min" - catches rotator silently
 # skipping its PutSecretValue call while not erroring. We compare to the
 # token secret's LastChangedDate via the `GetSecretValue` invocations metric;
 # absence is itself the alarm.

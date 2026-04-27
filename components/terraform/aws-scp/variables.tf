@@ -1,16 +1,16 @@
 variable "region" {
   type        = string
-  description = "AWS region (attach runs in mgmt account regardless — this is the provider region)."
+  description = "AWS region (attach runs in mgmt account regardless - this is the provider region)."
 }
 
 variable "statements" {
   type        = any
-  description = "SCP statements (Cloudposse shape — map of statement-id → {effect, actions, resources, conditions})."
+  description = "SCP statements (Cloudposse shape - map of statement-id → {effect, actions, resources, conditions})."
 }
 
 variable "description" {
   type        = string
-  default     = "Atmos-AFT additional SCP — never CT guardrails."
+  default     = "Atmos-AFT additional SCP - never CT guardrails."
   description = "Policy description."
 }
 

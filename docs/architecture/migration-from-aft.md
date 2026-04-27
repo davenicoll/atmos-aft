@@ -10,13 +10,13 @@ This document is the source of truth; §10 of the root README is a short pointer
 
 ## 1. Motivation and constraints
 
-atmos-aft does not require migration — it works as a replacement for teams starting fresh on Control Tower. This document covers the harder case: an existing estate managed by AFT that needs to land on atmos-aft without an outage, without losing customizations, and without re-vending accounts.
+atmos-aft does not require migration - it works as a replacement for teams starting fresh on Control Tower. This document covers the harder case: an existing estate managed by AFT that needs to land on atmos-aft without an outage, without losing customizations, and without re-vending accounts.
 
 Constraints that shape the approach:
 
 - **CT-owned resources stay put.** Control Tower continues to own Organizations, OUs, baseline SCPs, the org-level CloudTrail, and the Identity Center instance. Neither AFT nor atmos-aft has ever managed those, so the migration leaves them alone.
 - **Vended accounts already exist.** Each is a Service Catalog provisioned-product in the CT management account. Migration means importing that provisioned-product into atmos-aft's Terraform state, not re-vending.
-- **State cannot be shared.** AFT's backend is a single S3 bucket with per-repo prefixes. atmos-aft uses per-account buckets with per-account CMKs. We don't migrate state — atmos-aft creates fresh state during import, and AFT's state stays put until the final decommission.
+- **State cannot be shared.** AFT's backend is a single S3 bucket with per-repo prefixes. atmos-aft uses per-account buckets with per-account CMKs. We don't migrate state - atmos-aft creates fresh state during import, and AFT's state stays put until the final decommission.
 - **Customer repos carry customer IP.** Global and per-account customizations are the operator's own Terraform. These port directly; only the glue around them changes.
 - **Downtime is unacceptable.** Accounts already in production must keep working throughout. The migration plans are designed so that at no point is an account ungoverned.
 
@@ -39,7 +39,7 @@ aws dynamodb scan \
 
 For each row, capture:
 
-- `id` (account email — primary key)
+- `id` (account email - primary key)
 - `account_name`
 - `account_id`
 - `ou` (current Managed OU)
@@ -63,7 +63,7 @@ For each customization directory:
 
 - Note the list of modules it calls (especially anything depending on SSM `/aft/*` keys that atmos-aft renames).
 - Note any `api_helpers/pre-api-helpers.sh` or `post-api-helpers.sh` scripts.
-- Note any SFN or Lambda code in `aft-account-provisioning-customizations` — that does not port directly (§6).
+- Note any SFN or Lambda code in `aft-account-provisioning-customizations` - that does not port directly (§6).
 
 ### 2.3 Inventory of SSM parameters
 
@@ -90,11 +90,11 @@ aws servicecatalog search-provisioned-products \
   --output table
 ```
 
-Each row corresponds to one account currently under AFT. Record the product IDs — they become the `terraform import` arguments in §4.4.
+Each row corresponds to one account currently under AFT. Record the product IDs - they become the `terraform import` arguments in §4.4.
 
 ### 2.6 Failed or stuck accounts
 
-Check `aft-account-request-dlq.fifo` — any messages here represent failed provisioning attempts:
+Check `aft-account-request-dlq.fifo` - any messages here represent failed provisioning attempts:
 
 ```bash
 queue_url=$(aws ssm get-parameter --name /aft/resources/sqs/aft-account-request-dlq-fifo --query Parameter.Value --output text)
@@ -129,7 +129,7 @@ Trigger `bootstrap.yaml` with inputs pointing at the **same** AFT-management acc
 - `AtmosDeploymentRole` in CT-mgmt, audit, log-archive, AFT-mgmt (alongside AFT's `AWSAFTExecution`).
 - `github-oidc-provider` in AFT-mgmt.
 - Per-account `tfstate-backend` buckets + per-account CMKs (new, distinct from AFT's `aft-backend-*` bucket).
-- Security-service delegated-admin already in place from AFT — atmos-aft's bootstrap detects and skips.
+- Security-service delegated-admin already in place from AFT - atmos-aft's bootstrap detects and skips.
 
 Nothing in this step affects AFT's runtime. Verify AFT is still green:
 
@@ -163,7 +163,7 @@ Choose the least-critical account (a sandbox or dev account) for the first impor
 
 - Accounts with in-flight AFT provisioning (wait for the CodePipeline to go green).
 - Accounts whose customizations are actively being edited in the AFT customer repos.
-- Shared-service accounts (log-archive, audit) — those come last.
+- Shared-service accounts (log-archive, audit) - those come last.
 
 ### 4.2 Author the stack YAML
 
@@ -190,7 +190,7 @@ vars:
     cloudtrail_data_events: <from original AFT input>
 ```
 
-Open a PR — `pr.yaml` runs `atmos terraform plan` read-only. **Expected diff at this point: everything is an "add"** because atmos-aft has no state for this account yet. Do not merge yet.
+Open a PR - `pr.yaml` runs `atmos terraform plan` read-only. **Expected diff at this point: everything is an "add"** because atmos-aft has no state for this account yet. Do not merge yet.
 
 ### 4.3 Generate the import commands
 
@@ -210,7 +210,7 @@ The workflow:
 2. Creates per-account `tfstate-backend` bucket + CMK.
 3. Stamps `AtmosDeploymentRole` in the target.
 4. Runs the `terraform import` commands from §4.3.
-5. Runs `atmos terraform plan` — **expected diff now: zero or near-zero**. A small diff is acceptable if it reflects atmos-aft's extra guardrails (KMS alias, tag key differences). A large diff is a red flag; stop and investigate.
+5. Runs `atmos terraform plan` - **expected diff now: zero or near-zero**. A small diff is acceptable if it reflects atmos-aft's extra guardrails (KMS alias, tag key differences). A large diff is a red flag; stop and investigate.
 
 ### 4.5 Merge and verify
 
@@ -241,7 +241,7 @@ table=$(aws ssm get-parameter --name /aft/resources/ddb/aft-request --query Para
 aws dynamodb delete-item --table-name "$table" --key "{\"id\":{\"S\":\"$account_email\"}}"
 ```
 
-AFT's `aft-account-request-action-trigger` Lambda fires with a `REMOVE` event and invokes `aft-cleanup-resources`. **The cleanup Lambda deletes AFT-managed state and IAM roles that AFT itself stamped into the account** — it does not touch atmos-aft's `AtmosDeploymentRole`, the per-account `tfstate-backend` bucket, or any customization state. Verify by watching:
+AFT's `aft-account-request-action-trigger` Lambda fires with a `REMOVE` event and invokes `aft-cleanup-resources`. **The cleanup Lambda deletes AFT-managed state and IAM roles that AFT itself stamped into the account** - it does not touch atmos-aft's `AtmosDeploymentRole`, the per-account `tfstate-backend` bucket, or any customization state. Verify by watching:
 
 ```bash
 aws logs tail /aws/lambda/aft-cleanup-resources --follow
@@ -292,18 +292,18 @@ Changes to make:
 
 | Upstream Jinja | atmos-aft replacement |
 |----------------|-----------------------|
-| `{{ aft_admin_role_arn }}` | Resolved by Atmos auth chain — remove the reference. |
-| `{{ target_admin_role_arn }}` | Resolved by Atmos auth chain — remove. |
+| `{{ aft_admin_role_arn }}` | Resolved by Atmos auth chain - remove the reference. |
+| `{{ target_admin_role_arn }}` | Resolved by Atmos auth chain - remove. |
 | `{{ vended_account_id }}` | `var.account_id`, populated from `!store` or stack var. |
 | `{{ ssm_account_id }}` | Remove; runtime auth fills this in. |
 | `{{ tf_s3_bucket }}` / `{{ tf_s3_key }}` / `{{ tf_dynamodb_table }}` | Declared in stack catalog; remove the Jinja. |
 
-- **Keep `api_helpers/pre-api-helpers.sh` and `post-api-helpers.sh`.** When the customizations layer ships (NOT YET IMPLEMENTED — see §5), the `_customize-global.yaml` and `_customize-account.yaml` reusables will invoke them via inline `run:` steps inside `scripts/customize/{pre,post}-api-helpers.sh` (the upstream stubs already check for these paths with `[[ -x ... ]]`). Update any hard-coded AFT role names in the helpers:
+- **Keep `api_helpers/pre-api-helpers.sh` and `post-api-helpers.sh`.** When the customizations layer ships (NOT YET IMPLEMENTED - see §5), the `_customize-global.yaml` and `_customize-account.yaml` reusables will invoke them via inline `run:` steps inside `scripts/customize/{pre,post}-api-helpers.sh` (the upstream stubs already check for these paths with `[[ -x ... ]]`). Update any hard-coded AFT role names in the helpers:
 
 ```bash
 # Old
 aws --profile aft-target ...
-# New — rely on the aws-actions/configure-aws-credentials session
+# New - rely on the aws-actions/configure-aws-credentials session
 aws ...
 ```
 
@@ -320,7 +320,7 @@ This is the one component that does not port directly. AFT's customer-owned `aft
 | `Task` with Lambda invocation | Job with `run:` or composite action. Lambda code runs inline via `aws lambda invoke` or is inlined as shell. |
 | `Choice` with `Not`/`And`/`Or` conditions | Job with `if:` expression. |
 | `Parallel` with branches | Matrix strategy, or separate jobs with no `needs:` between them. |
-| `Wait` with `Seconds` | `run: sleep N`. Rare — usually you can remove the wait and rely on retries. |
+| `Wait` with `Seconds` | `run: sleep N`. Rare - usually you can remove the wait and rely on retries. |
 | Manual approval via SNS + user action | `environment:` with required reviewers. |
 | ServiceNow ticket creation | HTTP call in a job step with `SERVICENOW_TOKEN` secret. |
 
@@ -336,12 +336,12 @@ Run `customize-fleet.yaml --scope=stack:<migrated-stack> --dry_run=true` before 
 
 ### 6.1 Shared accounts (ct-management, log-archive, audit)
 
-These accounts exist before AFT and before atmos-aft. AFT treats them specially via `shared_account_request` logic. atmos-aft manages them as regular stacks under `stacks/orgs/<org>/core/`. Import them last — their customizations usually touch org-wide resources (Organizations, SCPs, CloudTrail), so bugs have blast radius.
+These accounts exist before AFT and before atmos-aft. AFT treats them specially via `shared_account_request` logic. atmos-aft manages them as regular stacks under `stacks/orgs/<org>/core/`. Import them last - their customizations usually touch org-wide resources (Organizations, SCPs, CloudTrail), so bugs have blast radius.
 
 Import pattern is the same as §4, except:
 
 - The import workflow targets the `core/` OU convention.
-- `AtmosDeploymentRole` was already stamped during bootstrap — no `OrganizationAccountAccessRole` fallback needed.
+- `AtmosDeploymentRole` was already stamped during bootstrap - no `OrganizationAccountAccessRole` fallback needed.
 - Customizations for these accounts often live in `aft-global-customizations` but are conditional on `data.aws_caller_identity.current.account_id`. Port the conditionals verbatim.
 
 ### 6.2 Accounts with pending CT parameter updates
@@ -352,7 +352,7 @@ If an account has `control_tower_parameters` queued for update in AFT but not ye
 2. Verify the update landed in CT.
 3. Then import as per §4.
 
-Do not import mid-update — the stack YAML will drift from reality.
+Do not import mid-update - the stack YAML will drift from reality.
 
 ### 6.3 Accounts with customization failures in AFT
 
@@ -405,7 +405,7 @@ The destroy removes: DDB tables, SQS queues, SNS topics, Step Functions, CodeBui
 ### 7.3 Archive AFT state and customer repos
 
 - Keep the `aft-backend-*` S3 bucket for a retention window (30–90 days) as an audit trail, then delete. It contains the Terraform state that produced the estate you just migrated.
-- Archive the four AFT customer repos (`aft-account-request`, `aft-account-provisioning-customizations`, `aft-global-customizations`, `aft-account-customizations`) to a read-only state. Do not delete — historical git log is still useful.
+- Archive the four AFT customer repos (`aft-account-request`, `aft-account-provisioning-customizations`, `aft-global-customizations`, `aft-account-customizations`) to a read-only state. Do not delete - historical git log is still useful.
 
 ### 7.4 Clean up SSM parameters
 
@@ -437,12 +437,12 @@ The definitive atmos-aft SSM key list is derived from `components/terraform/aft-
 Migration is low-risk but not zero-risk. If the imported state diverges from reality and the divergence cannot be reconciled in-place:
 
 1. **Do not delete atmos-aft's state.** Even if it's wrong, it's a record of what atmos-aft believed to be true.
-2. Re-add the account's `aft-request` row to the AFT DDB table with the original `id`/email. AFT will re-claim the account (no re-vending — the account already exists).
-3. In atmos-aft, run `destroy-account.yaml --stack=<stack> --confirm_account_id=<id>` — but **edit the destroy workflow beforehand** to skip the Service Catalog termination step (the account is still live under AFT now).
+2. Re-add the account's `aft-request` row to the AFT DDB table with the original `id`/email. AFT will re-claim the account (no re-vending - the account already exists).
+3. In atmos-aft, run `destroy-account.yaml --stack=<stack> --confirm_account_id=<id>` - but **edit the destroy workflow beforehand** to skip the Service Catalog termination step (the account is still live under AFT now).
 4. The destroy workflow removes `AtmosDeploymentRole` and the per-account `tfstate-backend` bucket/CMK. Verify AFT customizations still run clean.
 5. Mark the stack YAML as deleted in a follow-up PR.
 
-Full rollback of the bootstrap (removing atmos-aft entirely) is `terraform destroy` of the atmos-aft root stack — same as §7.2 but pointed at atmos-aft's bootstrap state. This leaves AFT intact since the two systems are state-isolated.
+Full rollback of the bootstrap (removing atmos-aft entirely) is `terraform destroy` of the atmos-aft root stack - same as §7.2 but pointed at atmos-aft's bootstrap state. This leaves AFT intact since the two systems are state-isolated.
 
 ---
 
@@ -470,7 +470,7 @@ Quick reference for what maps to what during the cut-over. Fuller detail in [`do
 | `aft-backend-*` S3 bucket | Per-account `atmos-tfstate-*` buckets | New, not migrated. Archive original per §7.3. |
 | `aft-backend-*` DDB lock table | S3-native locking (`use_lockfile=true`) | Replaced; destroy with §7.2. |
 | 6 Lambdas in `aft_account_request_framework` | Not needed | Destroy with §7.2. |
-| 3 Lambdas in `aft_feature_options` | Not needed — logic moved into GHA jobs | Destroy with §7.2. |
+| 3 Lambdas in `aft_feature_options` | Not needed - logic moved into GHA jobs | Destroy with §7.2. |
 | 3 Lambdas in `aft_customizations` | `atmos describe affected` + composite actions | Destroy with §7.2. |
 | `aft-common` Lambda layer | Not needed | Destroy with §7.2. |
 | AFT VPC + 17 endpoints | Not needed (GHA runners) | Destroy with §7.2. |

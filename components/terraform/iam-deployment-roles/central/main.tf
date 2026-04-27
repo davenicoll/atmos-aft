@@ -17,7 +17,7 @@ locals {
 data "aws_caller_identity" "current" {}
 
 # ---------------------------------------------------------------------------
-# AtmosCentralDeploymentRole — first hop after OIDC. Fan-out root.
+# AtmosCentralDeploymentRole - first hop after OIDC. Fan-out root.
 # ---------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "central_trust" {
@@ -69,7 +69,7 @@ resource "aws_iam_role" "central" {
   count = local.enabled ? 1 : 0
 
   name                 = "AtmosCentralDeploymentRole"
-  description          = "Central deployment role — first hop after GitHub OIDC for all Atmos workflows."
+  description          = "Central deployment role - first hop after GitHub OIDC for all Atmos workflows."
   assume_role_policy   = data.aws_iam_policy_document.central_trust.json
   max_session_duration = var.max_session_duration
 
@@ -90,7 +90,7 @@ resource "aws_iam_role_policy" "central_assume" {
 }
 
 # ---------------------------------------------------------------------------
-# AtmosPlanOnlyRole — PR plan identity. Only trusts pull_request OIDC.
+# AtmosPlanOnlyRole - PR plan identity. Only trusts pull_request OIDC.
 # ---------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "plan_only_trust" {
@@ -175,7 +175,7 @@ resource "aws_iam_role_policy" "plan_only_inline" {
 }
 
 # ---------------------------------------------------------------------------
-# AtmosReadAllStateRole — drift-summary aggregator. Same-account trust only.
+# AtmosReadAllStateRole - drift-summary aggregator. Same-account trust only.
 # Read-only enforced by permissions boundary.
 # ---------------------------------------------------------------------------
 

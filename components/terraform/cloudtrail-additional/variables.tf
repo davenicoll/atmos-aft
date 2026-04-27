@@ -12,7 +12,7 @@ variable "multi_region" {
 variable "include_global_service_events" {
   type        = bool
   default     = false
-  description = "Include IAM and STS events. False by default — the CT org trail already does this."
+  description = "Include IAM and STS events. False by default - the CT org trail already does this."
 }
 
 variable "kms_key_arn" {
@@ -30,7 +30,7 @@ variable "event_selectors" {
 variable "access_log_bucket_name" {
   type        = string
   default     = ""
-  description = "Name of an S3 bucket to receive server-access logs for the trail bucket (CIS 2.6). Empty disables access logging — set this for prod or any audited deployment."
+  description = "Name of an S3 bucket to receive server-access logs for the trail bucket (CIS 2.6). Empty disables access logging - set this for prod or any audited deployment."
 }
 
 variable "target_role_arn" {

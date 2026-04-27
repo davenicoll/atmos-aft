@@ -14,19 +14,19 @@ Source of truth: `docs/architecture/atmos-model.md` §9.3.2 and `docs/architectu
 
 ## Trust pinning
 
-The deploy path pins OIDC `sub` to four claims: `refs/heads/main` plus three environment claims (`aft-mgmt`, `vended`, `core`) — matching the environments declared in `gha-design.md` §10.2. Plan-only pins to `pull_request` and is fully distinct; a PR workflow cannot accidentally assume the deploy role.
+The deploy path pins OIDC `sub` to four claims: `refs/heads/main` plus three environment claims (`aft-mgmt`, `vended`, `core`) - matching the environments declared in `gha-design.md` §10.2. Plan-only pins to `pull_request` and is fully distinct; a PR workflow cannot accidentally assume the deploy role.
 
 ## Cross-references
 
 - `AtmosReadAllStateRole` ARN is published as an output and must be referenced by every target-account `tfstate-backend` component's KMS key policy (§9.3.2 `AllowReadAllStateRoleDecryptOnly`) and S3 bucket policy (`AllowReadAllStateRoleRead`). The per-account `iam-roles-target-account` component consumes it via Atmos remote-state.
-- `AtmosCentralDeploymentRole`'s assume-role policy lists `*:role/AWSControlTowerExecution` and `*:role/OrganizationAccountAccessRole` as assumable targets — this is what lets the bootstrap identity reach into newly vended accounts before `AtmosDeploymentRole` exists there (see `mapping.md` §5.4).
+- `AtmosCentralDeploymentRole`'s assume-role policy lists `*:role/AWSControlTowerExecution` and `*:role/OrganizationAccountAccessRole` as assumable targets - this is what lets the bootstrap identity reach into newly vended accounts before `AtmosDeploymentRole` exists there (see `mapping.md` §5.4).
 
 ## Inputs
 
 - `region`
-- `github_org`, `github_repo` — pin the OIDC `sub` claim
-- `github_oidc_provider_arn` — created by the `github-oidc-provider` component, consumed here via stack `!terraform.output`
-- `max_session_duration` — default 3600
+- `github_org`, `github_repo` - pin the OIDC `sub` claim
+- `github_oidc_provider_arn` - created by the `github-oidc-provider` component, consumed here via stack `!terraform.output`
+- `max_session_duration` - default 3600
 
 ## Outputs
 

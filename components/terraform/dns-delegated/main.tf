@@ -13,7 +13,7 @@ resource "aws_route53_zone" "delegated" {
   tags = module.this.tags
 }
 
-# Delegation NS record in the parent zone — only rendered when parent_zone_id is provided
+# Delegation NS record in the parent zone - only rendered when parent_zone_id is provided
 # (i.e. when the component can write to the parent zone). Cross-account setups omit
 # parent_zone_id and create the delegation record externally.
 resource "aws_route53_record" "delegation" {

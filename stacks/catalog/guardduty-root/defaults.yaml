@@ -1,4 +1,4 @@
-# Phase 1 — runs in CT-mgmt. Enables the org detector and delegates admin to
+# Phase 1 - runs in CT-mgmt. Enables the org detector and delegates admin to
 # the audit account.
 components:
   terraform:

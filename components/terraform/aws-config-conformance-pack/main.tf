@@ -2,7 +2,7 @@
 # CONTROL TOWER COEXISTENCE WARNING
 # ---------------------------------------------------------------------------
 # Wraps ONLY the conformance-pack submodule. On any CT-enrolled account Config
-# is managed by CT — conformance packs must be deployed via the CT delegated
+# is managed by CT - conformance packs must be deployed via the CT delegated
 # admin (audit account), not by applying this component in-account.
 #
 # Enforcement is the `var.skip_on_ct_managed_account` flag combined with the

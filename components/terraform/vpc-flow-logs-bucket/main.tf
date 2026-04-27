@@ -2,7 +2,7 @@ module "flow_logs_bucket" {
   source  = "cloudposse/vpc-flow-logs-s3-bucket/aws"
   version = "1.3.1"
 
-  # This component owns the central log-archive BUCKET only — it does not
+  # This component owns the central log-archive BUCKET only - it does not
   # provision aws_flow_log itself (those are created per-VPC in vended
   # accounts and write to this bucket cross-account). The upstream module
   # defaults `flow_log_enabled = true` and `vpc_id = null`, which trips

@@ -1,5 +1,5 @@
 # Primarily validates the user-facing contract that can be exercised without
-# the underlying cloudposse/tfstate-backend module actually planning — the
+# the underlying cloudposse/tfstate-backend module actually planning - the
 # module itself wraps many AWS data sources whose return values are
 # mocked here, so bucket/key attributes fall out of scope for plan-time
 # assertions. What IS testable: variable validation + the kms_alias output
@@ -44,7 +44,7 @@ run "default_kms_alias_is_atmos_tfstate" {
 
   assert {
     condition     = output.kms_alias_name == "alias/atmos-tfstate"
-    error_message = "Default KMS alias must be 'alias/atmos-tfstate' — the atmos-model.md baseline."
+    error_message = "Default KMS alias must be 'alias/atmos-tfstate' - the atmos-model.md baseline."
   }
 }
 

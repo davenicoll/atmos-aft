@@ -41,7 +41,7 @@ logs:
   file: "/dev/stderr"
   level: "Info"
 
-# CI awareness — Atmos auto-detects GitHub Actions when enabled.
+# CI awareness - Atmos auto-detects GitHub Actions when enabled.
 ci:
   enabled: true
 
@@ -55,7 +55,7 @@ templates:
       timeout: 5
 
 # ---------------------------------------------------------------------------
-# Stores — referenced by components via !store and hooks.store-outputs.
+# Stores - referenced by components via !store and hooks.store-outputs.
 # See atmos-model.md §8 and gha-design.md §7.
 # ---------------------------------------------------------------------------
 stores:
@@ -65,7 +65,7 @@ stores:
       region: !env ATMOS_SSM_REGION "us-east-1"
       prefix: "/atmos/plans"
       read_only: false
-  # ssm-account-status — canonical namespace written by the publish-status
+  # ssm-account-status - canonical namespace written by the publish-status
   # composite action (.github/actions/publish-status/action.yml). Parameter
   # layout per account is:
   #   /aft/account/<name>/account-id               (written by account-provisioning after-apply hook)
@@ -81,7 +81,7 @@ stores:
   #   /aft/account/<name>/email                    account_email captured at destroy time
   #
   # The destroyed_at + email pair underpins the 7-day cooldown guard in
-  # pr.yaml — see catalog/account-provisioning/defaults.yaml for the read
+  # pr.yaml - see catalog/account-provisioning/defaults.yaml for the read
   # pattern. Any key the publish-status composite is invoked with via its
   # `extra` input lands under this same prefix.
   ssm-account-status:
@@ -92,7 +92,7 @@ stores:
       read_only: false
 
 # ---------------------------------------------------------------------------
-# Auth — the cross-account role chain is split across two layers:
+# Auth - the cross-account role chain is split across two layers:
 #
 #   1. gha-oidc → central hop lives in the `configure-aws` composite action
 #      (.github/actions/configure-aws/action.yml). That action assumes one of
@@ -115,7 +115,7 @@ stores:
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Custom commands — wrappers invoked from workflows / make targets.
+# Custom commands - wrappers invoked from workflows / make targets.
 # See gha-design.md §5 and testing-strategy.md.
 # ---------------------------------------------------------------------------
 commands:

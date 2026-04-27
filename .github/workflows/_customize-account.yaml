@@ -54,7 +54,7 @@ jobs:
         with:
           stack: ${{ matrix.stack }}
           component: customizations/default
-          # Central-only stacks (no target account) are valid here — the
+          # Central-only stacks (no target account) are valid here - the
           # resolve-name shell branch below handles empty account_id by
           # falling back to the "default" customization name.
           require_target: "false"

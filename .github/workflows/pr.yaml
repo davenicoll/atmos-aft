@@ -100,7 +100,7 @@ jobs:
   affected:
     name: affected (describe)
     needs: [validate, policy]
-    # Skip when AtmosPlanOnlyRole isn't yet wired up — the role is created
+    # Skip when AtmosPlanOnlyRole isn't yet wired up - the role is created
     # by Phase C bootstrap, so the very first PR (the bootstrap scaffold
     # itself) cannot satisfy this gate. Set the repo var after Phase C.
     if: vars.ATMOS_PLAN_ONLY_ROLE_ARN != ''

@@ -7,7 +7,7 @@ module "trail_bucket" {
 
   force_destroy = false
 
-  # Server-access logging on the trail bucket — required by CIS 2.6.
+  # Server-access logging on the trail bucket - required by CIS 2.6.
   # Set var.access_log_bucket_name to point at the centralized logging
   # bucket (or leave empty in dev to skip).
   access_log_bucket_name = var.access_log_bucket_name

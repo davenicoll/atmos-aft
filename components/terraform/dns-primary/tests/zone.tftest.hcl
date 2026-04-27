@@ -27,7 +27,7 @@ run "default_creates_one_zone" {
 
   assert {
     condition     = aws_route53_zone.primary[0].force_destroy == false
-    error_message = "force_destroy must be hard-coded false — safety guard against accidental zone deletion."
+    error_message = "force_destroy must be hard-coded false - safety guard against accidental zone deletion."
   }
 }
 

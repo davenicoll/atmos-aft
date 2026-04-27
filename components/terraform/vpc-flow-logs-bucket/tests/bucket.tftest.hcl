@@ -3,7 +3,7 @@
 # (lifecycle: 30d→IA, 90d→Glacier, 365d expiration), force_destroy is
 # pinned off, and lifecycle ordering is sane.
 #
-# Component-side contract: this is a BUCKET-only component — consumers
+# Component-side contract: this is a BUCKET-only component - consumers
 # in vended accounts create their own aws_flow_log resources against
 # this bucket cross-account. main.tf pins `flow_log_enabled = false` on
 # the wrapped cloudposse module so its aws_flow_log resource is
@@ -74,7 +74,7 @@ run "lifecycle_thresholds_flow_through" {
   # Asserting on the wrapped module's internal aws_s3_bucket_lifecycle
   # resource is brittle (computed-after-apply for many fields) and the
   # module's count-guards strip resources when enabled=false. We assert
-  # the var surface — the contract that the module documents.
+  # the var surface - the contract that the module documents.
   assert {
     condition     = var.standard_transition_days == 60 && var.glacier_transition_days == 180 && var.expiration_days == 2555
     error_message = "Lifecycle threshold variables must flow through to the cloudposse module."
@@ -85,7 +85,7 @@ run "ordering_invariant_standard_lt_glacier_lt_expiration" {
   command = plan
 
   # Logical contract: standard transition must precede glacier; glacier
-  # must precede expiration. The component does not enforce this — this
+  # must precede expiration. The component does not enforce this - this
   # is a regression guard against a sloppy override at the stack layer.
   assert {
     condition     = var.standard_transition_days < var.glacier_transition_days

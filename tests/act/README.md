@@ -11,7 +11,7 @@ Local GitHub Actions runner harness using [nektos/act](https://github.com/nektos
 ## Running
 
 ```bash
-# Dry-run every workflow — static syntax check.
+# Dry-run every workflow - static syntax check.
 make test-act
 
 # Run a single entry workflow with a synthetic event fixture:
@@ -24,7 +24,7 @@ act pull_request \
 
 Event JSON files under `tests/act/events/` are consumed by the matrix in
 `.github/workflows/ci-tests.yaml`. Each entry workflow has a corresponding
-fixture — a minimal GitHub webhook payload stub. See the
+fixture - a minimal GitHub webhook payload stub. See the
 [webhook docs](https://docs.github.com/en/webhooks/webhook-events-and-payloads)
 for schemas.
 

@@ -17,7 +17,7 @@ run "default_does_not_register_delegated_admin" {
 
   assert {
     condition     = length(aws_securityhub_organization_admin_account.this) == 0
-    error_message = "With set_delegated_admin_account_id=null (default), the delegated-admin resource must NOT be declared — only the ct-mgmt stack should register the admin."
+    error_message = "With set_delegated_admin_account_id=null (default), the delegated-admin resource must NOT be declared - only the ct-mgmt stack should register the admin."
   }
 }
 
@@ -44,6 +44,6 @@ run "aggregator_default_off" {
 
   assert {
     condition     = var.finding_aggregator_enabled == false
-    error_message = "finding_aggregator_enabled must default to false — only the delegated-admin stack enables it (one aggregator per org)."
+    error_message = "finding_aggregator_enabled must default to false - only the delegated-admin stack enables it (one aggregator per org)."
   }
 }

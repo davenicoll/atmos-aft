@@ -39,7 +39,7 @@ run "exactly_one_rule_covers_all_three_event_names" {
 
   assert {
     condition     = length(aws_cloudwatch_event_rule.ct_lifecycle) == 1
-    error_message = "Post-refactor there must be exactly ONE event rule — the three CT lifecycle events are merged via event_pattern. A value of 3 here means the for_each split regressed."
+    error_message = "Post-refactor there must be exactly ONE event rule - the three CT lifecycle events are merged via event_pattern. A value of 3 here means the for_each split regressed."
   }
 
   # event_pattern is a JSON string at plan time. Assert it references all
@@ -64,7 +64,7 @@ run "target_uses_raw_event_placeholder" {
 
   assert {
     condition     = length(aws_cloudwatch_event_target.github_dispatch) == 1
-    error_message = "Exactly one target — matches the single-rule topology."
+    error_message = "Exactly one target - matches the single-rule topology."
   }
 
   # The reserved <aws.events.event> placeholder is how we embed the full CT
@@ -75,7 +75,7 @@ run "target_uses_raw_event_placeholder" {
       "<aws\\.events\\.event>",
       aws_cloudwatch_event_target.github_dispatch[0].input_transformer[0].input_template
     ))
-    error_message = "input_template must embed the reserved <aws.events.event> placeholder — without it client_payload loses the full event detail."
+    error_message = "input_template must embed the reserved <aws.events.event> placeholder - without it client_payload loses the full event detail."
   }
 
   # event_type is the repository_dispatch type GH workflows subscribe to.

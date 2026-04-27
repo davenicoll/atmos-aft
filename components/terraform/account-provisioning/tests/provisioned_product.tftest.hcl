@@ -57,7 +57,7 @@ run "default_declares_exactly_one_provisioned_product" {
 run "all_six_provisioning_parameters_propagate_with_correct_keys" {
   command = plan
 
-  # CT's Account Factory product expects exactly these six keys — drift
+  # CT's Account Factory product expects exactly these six keys - drift
   # in spelling or order silently breaks account creation.
   assert {
     condition     = length(aws_servicecatalog_provisioned_product.account[0].provisioning_parameters) == 6
@@ -152,7 +152,7 @@ run "rejects_invalid_account_email_format" {
 run "echo_outputs_propagate_at_plan_time" {
   command = plan
 
-  # account_name + managed_organizational_unit are pure-input echoes —
+  # account_name + managed_organizational_unit are pure-input echoes -
   # they're known at plan and let us assert the surface contract without
   # waiting for apply.
   assert {
@@ -173,7 +173,7 @@ run "account_id_precondition_fires_when_local_is_null" {
   # via the try() in main.tf. The precondition then fails the apply rather
   # than silently emitting null to /aft/account/<name>/id in SSM.
   #
-  # We exercise the failure path by setting enabled=false — that drops the
+  # We exercise the failure path by setting enabled=false - that drops the
   # provisioned_product resource entirely, so the try() in main.tf falls
   # through to its null default. This is the same code path the runtime
   # hits when CT has not yet populated the AccountId key in its outputs

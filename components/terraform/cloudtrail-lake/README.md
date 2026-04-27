@@ -1,6 +1,6 @@
 # cloudtrail-lake
 
-CloudTrail Lake event data store for the audit account. Replaces AFT's `aft-request-audit` DynamoDB table (see `docs/architecture/mapping.md` §4.1) — the ledger of every AWS API call relevant to account provisioning and organization management.
+CloudTrail Lake event data store for the audit account. Replaces AFT's `aft-request-audit` DynamoDB table (see `docs/architecture/mapping.md` §4.1) - the ledger of every AWS API call relevant to account provisioning and organization management.
 
 Configured for 7-year retention, termination protection on, four event sources (`controltower`, `organizations`, `servicecatalog`, `sts`).
 

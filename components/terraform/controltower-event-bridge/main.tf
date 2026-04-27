@@ -9,7 +9,7 @@ locals {
   # Which secret feeds the EventBridge connection.
   connection_secret_name = var.github_auth_mode == "app" ? local.app_token_secret_name : local.pat_secret_name
 
-  # GitHub dispatch endpoint — one repo, one URL.
+  # GitHub dispatch endpoint - one repo, one URL.
   github_dispatch_url = "https://api.github.com/repos/${var.github_org}/${var.github_repo}/dispatches"
 
   # CT lifecycle event names we fan out. The three events have heterogeneous
@@ -58,7 +58,7 @@ resource "aws_cloudwatch_event_target" "github_dispatch" {
   # The <aws.events.event> placeholder expands to the full raw CT event JSON.
   # We embed it verbatim as client_payload; the consumer workflow branches on
   # detail.eventName and walks the per-event serviceEventDetails path. This
-  # keeps terraform agnostic to CT event shape — new CT lifecycle events can
+  # keeps terraform agnostic to CT event shape - new CT lifecycle events can
   # be added to local.ct_event_names without changing any input_paths.
   input_transformer {
     input_template = <<-EOT

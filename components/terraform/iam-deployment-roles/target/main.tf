@@ -12,7 +12,7 @@ locals {
 }
 
 # ---------------------------------------------------------------------------
-# AtmosDeploymentRole — admin role assumed from central for every component apply.
+# AtmosDeploymentRole - admin role assumed from central for every component apply.
 # ---------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "deployment_trust" {
@@ -59,13 +59,13 @@ resource "aws_iam_role" "deployment" {
 
   # Cross-variable guard: CT-core classes require a non-empty ExternalId. An
   # empty string would render `values = [""]` in the trust statement, which
-  # is syntactically valid but locks the role out for everyone — silent
+  # is syntactically valid but locks the role out for everyone - silent
   # bricking. Variable validation can't reach across vars; surface the
   # invariant here so plan fails loudly.
   lifecycle {
     precondition {
       condition     = !contains(local.ct_core_classes, var.account_class) || var.atmos_external_id != ""
-      error_message = "account_class=${var.account_class} is a CT-core class — atmos_external_id must be set to a non-empty per-org UUID. An empty ExternalId would silently lock everyone out of AtmosDeploymentRole."
+      error_message = "account_class=${var.account_class} is a CT-core class - atmos_external_id must be set to a non-empty per-org UUID. An empty ExternalId would silently lock everyone out of AtmosDeploymentRole."
     }
   }
 
@@ -80,7 +80,7 @@ resource "aws_iam_role_policy_attachment" "deployment_admin" {
 }
 
 # ---------------------------------------------------------------------------
-# AtmosDeploymentRole-ReadOnly — PR plan identity. Trusted by AtmosPlanOnlyRole.
+# AtmosDeploymentRole-ReadOnly - PR plan identity. Trusted by AtmosPlanOnlyRole.
 # ---------------------------------------------------------------------------
 
 data "aws_iam_policy_document" "readonly_trust" {

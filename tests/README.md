@@ -11,7 +11,7 @@ workflow-syntax smoke, and `terratest` is opt-in per PR (default on main).
 | **static** | `atmos validate stacks` + `atmos describe stacks` + `terraform fmt -check` + per-component `terraform validate` + `tflint` + per-component `terraform test` (any `components/terraform/*/tests/*.tftest.hcl`) | ~3–6 min | yes |
 | **opa** | Rego unit tests (`opa test`) + `conftest test` against the fleet's resolved stacks | <1 min | yes |
 | **act** | `act --list` + `act --dryrun` for each entry workflow (matrix); fixture-driven | ~1–3 min | yes |
-| **terratest** | `go test ./...` under `tests/terratest/`; build-tagged for live-AWS suites. Legacy — prefer `terraform test` (`.tftest.hcl`) for new coverage | 15–60 min | opt-in |
+| **terratest** | `go test ./...` under `tests/terratest/`; build-tagged for live-AWS suites. Legacy - prefer `terraform test` (`.tftest.hcl`) for new coverage | 15–60 min | opt-in |
 
 All tiers orchestrated by `.github/workflows/ci-tests.yaml`.
 
@@ -47,12 +47,12 @@ tests/
 ├── terratest/
 │   ├── go.mod
 │   ├── helpers/atmos.go             # shared: RepoRoot, DescribeComponent, etc.
-│   └── *_test.go                    # legacy — prefer .tftest.hcl below
+│   └── *_test.go                    # legacy - prefer .tftest.hcl below
 └── README.md (this file)
 
 components/terraform/<name>/tests/   # native `terraform test` (.tftest.hcl)
-                                     # — preferred home for new component coverage
-                                     # — runs in CI as part of the static tier
+                                     # - preferred home for new component coverage
+                                     # - runs in CI as part of the static tier
 ```
 
 ## What each tier catches
@@ -65,7 +65,7 @@ components/terraform/<name>/tests/   # native `terraform test` (.tftest.hcl)
 - **act**: workflow YAML that won't parse, composite-action wiring errors,
   broken step conditionals. `act --dryrun` evaluates the step graph without
   actually executing steps. Does NOT exercise OIDC, AWS STS, concurrency
-  groups, or environment protections — those only run in real GHA.
+  groups, or environment protections - those only run in real GHA.
 - **terratest**: component-level behaviour that static analysis misses.
   Tagged `e2e` tests hit real AWS via localstack where supported or
   `//go:build e2e` otherwise. Default (untagged) tests run `atmos describe`
@@ -93,7 +93,7 @@ Then run with:
 TT_TAGS=e2e make test-terratest
 ```
 
-Without the tag, the file is excluded at compile time — the default
+Without the tag, the file is excluded at compile time - the default
 `make test-terratest` stays local-only.
 
 ## Adding a new test
@@ -114,7 +114,7 @@ Co-located with the component, no Go toolchain, no AWS credentials.
 ```hcl
 # components/terraform/<name>/tests/<topic>.tftest.hcl
 
-# Option A — pure mock (works when no aws_iam_policy_document or other
+# Option A - pure mock (works when no aws_iam_policy_document or other
 # compute-only data source is under assertion):
 mock_provider "aws" {
   mock_data "aws_region" {
@@ -122,7 +122,7 @@ mock_provider "aws" {
   }
 }
 
-# Option B — real provider with STS preflight skipped (required when your
+# Option B - real provider with STS preflight skipped (required when your
 # assertions read data.aws_iam_policy_document.json or similar):
 # provider "aws" {
 #   region                      = "us-east-1"
@@ -159,7 +159,7 @@ Run locally: `cd components/terraform/<name> && terraform init -backend=false &&
 
 `ci-tests.yaml` accepts two knobs on `workflow_dispatch`:
 
-- `run_terratest` (bool, default `false`) — force the Terratest tier even
+- `run_terratest` (bool, default `false`) - force the Terratest tier even
   outside a push to main.
 
 Plus two repo-var overrides consumed at runtime:

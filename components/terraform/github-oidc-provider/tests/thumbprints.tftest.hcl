@@ -61,6 +61,6 @@ run "caller_can_override_thumbprints" {
 
   assert {
     condition     = length(aws_iam_openid_connect_provider.github[0].thumbprint_list) == 1
-    error_message = "thumbprint_list override should replace, not merge — expected exactly 1 entry."
+    error_message = "thumbprint_list override should replace, not merge - expected exactly 1 entry."
   }
 }

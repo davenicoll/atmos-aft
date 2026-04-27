@@ -32,10 +32,10 @@ With extras:
 
 | Name | Required | Default | Description |
 |---|---|---|---|
-| `account_name` | yes | — | Logical account name used as the SSM path segment. |
-| `status` | yes | — | Status value (see allowed list below). |
-| `stack` | no | — | Atmos stack name. Written to `/aft/account/<n>/stack`. |
-| `extra` | no | — | Newline-separated `key=value` pairs written under the prefix. |
+| `account_name` | yes | - | Logical account name used as the SSM path segment. |
+| `status` | yes | - | Status value (see allowed list below). |
+| `stack` | no | - | Atmos stack name. Written to `/aft/account/<n>/stack`. |
+| `extra` | no | - | Newline-separated `key=value` pairs written under the prefix. |
 | `region` | no | `$AWS_REGION` | SSM region. |
 
 ### Allowed status values
@@ -52,11 +52,11 @@ With extras:
 ## Parameters always written
 
 - `/aft/account/<n>/status`
-- `/aft/account/<n>/status-updated-at` — ISO-8601 UTC.
-- `/aft/account/<n>/triggered_by_sha` — `github.sha`.
-- `/aft/account/<n>/triggered_by_commit_author` — `head_commit.author.email`, falling back to `github.actor`.
-- `/aft/account/<n>/last-run-id` — `github.run_id`.
-- `/aft/account/<n>/last-workflow` — `github.workflow`.
+- `/aft/account/<n>/status-updated-at` - ISO-8601 UTC.
+- `/aft/account/<n>/triggered_by_sha` - `github.sha`.
+- `/aft/account/<n>/triggered_by_commit_author` - `head_commit.author.email`, falling back to `github.actor`.
+- `/aft/account/<n>/last-run-id` - `github.run_id`.
+- `/aft/account/<n>/last-workflow` - `github.workflow`.
 
 `triggered_by_*` preserves the original merging human when the workflow was
 dispatched by `github-actions[bot]` via the default `GITHUB_TOKEN`, per

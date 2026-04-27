@@ -39,7 +39,7 @@ run "plan_succeeds_with_valid_statements" {
   # (organizations_policy_id, organizations_policy_arn), so downstream
   # assertions are limited. A clean plan is the primary test signal; the
   # wrapper passes var.statements / var.target_id / var.description straight
-  # through — failures surface as plan errors (e.g. the sid-missing error
+  # through - failures surface as plan errors (e.g. the sid-missing error
   # that this harness caught on a map-shaped statements input).
   assert {
     condition     = length(var.statements) == 1
@@ -51,7 +51,7 @@ run "default_description_matches_sentinel" {
   command = plan
 
   assert {
-    condition     = var.description == "Atmos-AFT additional SCP — never CT guardrails."
+    condition     = var.description == "Atmos-AFT additional SCP - never CT guardrails."
     error_message = "Default description must be the atmos-aft sentinel value. If this drifts, update the module-inventory doc too."
   }
 }

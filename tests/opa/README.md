@@ -21,7 +21,7 @@ tests/opa/
 ```
 
 Fixtures are inline in each `_test.rego` file as Rego object literals passed
-via `with input as {...}` — no JSON files on disk. Keeping fixtures colocated
+via `with input as {...}` - no JSON files on disk. Keeping fixtures colocated
 with their assertions makes each test self-contained and avoids the
 fixture-file drift that plagues larger policy suites.
 
@@ -29,7 +29,7 @@ Each `_test.rego` file:
 
 1. Constructs an `input` that mimics the shape of `atmos describe stacks
    --format json` (map of `stack_name` → stack object).
-2. Asserts against the `deny[_]` rule output shape — exactly zero violations
+2. Asserts against the `deny[_]` rule output shape - exactly zero violations
    for valid inputs, at least one for invalid ones.
 3. Covers both the "allowed" and "denied" branch of every rule.
 

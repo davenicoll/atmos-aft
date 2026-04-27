@@ -49,7 +49,7 @@ jobs:
     outputs:
       audit_account_id: ${{ steps.resolve.outputs.audit_account_id }}
     steps:
-      - name: Guard — service must be one of the three
+      - name: Guard - service must be one of the three
         shell: bash
         env:
           SVC: ${{ inputs.service }}

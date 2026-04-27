@@ -25,13 +25,13 @@ atmos-aft does **not** manage Control Tower itself. A misconfigured or mid-upgra
 
 **Signal.** Provisioning fails with `ManagedOrganizationalUnit <name> is not registered with Control Tower`. CT console shows the OU exists in Organizations but is not under CT management.
 
-**Fix.** In the CT console, register the OU. Wait for the `Registered` status before retrying the provision workflow. Do not create OUs outside CT — OUs are CT-owned under the coexistence contract.
+**Fix.** In the CT console, register the OU. Wait for the `Registered` status before retrying the provision workflow. Do not create OUs outside CT - OUs are CT-owned under the coexistence contract.
 
 ### 1.3 CT drift or in-progress lifecycle event
 
 **Signal.** `CreateManagedAccount` / `UpdateManagedAccount` events are not arriving on the `aft-events-from-ct-management` EventBridge bus (in atmos-aft, the equivalent signalling path). CT shows `Lifecycle in progress` or individual accounts show `Enrolled (drifted)`.
 
-**Fix.** Wait for CT to finish its lifecycle operation — concurrent account creates will fail against an in-flight CT operation. For drifted accounts, trigger a CT repair from the console; do not attempt to re-baseline from atmos-aft until drift clears.
+**Fix.** Wait for CT to finish its lifecycle operation - concurrent account creates will fail against an in-flight CT operation. For drifted accounts, trigger a CT repair from the console; do not attempt to re-baseline from atmos-aft until drift clears.
 
 ### 1.4 Guardrails blocking baseline execution
 
@@ -39,7 +39,7 @@ atmos-aft does **not** manage Control Tower itself. A misconfigured or mid-upgra
 
 **Cause.** A CT-managed preventative guardrail (SCP) is blocking the baseline action, or a custom SCP attached to the OU conflicts with the baseline scope.
 
-**Fix.** Identify the SCP from the CloudTrail event (`additionalEventData.policiesEvaluated`). If it is a CT-managed mandatory guardrail, the baseline component must not attempt that action — remove the offending resource from the baseline. If it is a custom SCP, decide whether to scope the baseline differently or to amend the SCP; do **not** detach a CT-managed mandatory guardrail.
+**Fix.** Identify the SCP from the CloudTrail event (`additionalEventData.policiesEvaluated`). If it is a CT-managed mandatory guardrail, the baseline component must not attempt that action - remove the offending resource from the baseline. If it is a custom SCP, decide whether to scope the baseline differently or to amend the SCP; do **not** detach a CT-managed mandatory guardrail.
 
 ---
 
@@ -52,7 +52,7 @@ atmos-aft replaces AFT's long-lived `AWSAFTAdmin` hub role with short-lived OIDC
 **Signal.** GitHub Actions job fails at the `aws-actions/configure-aws-credentials` step with `Not authorized to perform sts:AssumeRoleWithWebIdentity`.
 
 **Diagnostics.**
-1. Confirm the OIDC provider exists in the target account: `aws iam list-open-id-connect-providers` — URL must be `https://token.actions.githubusercontent.com`, thumbprint current.
+1. Confirm the OIDC provider exists in the target account: `aws iam list-open-id-connect-providers` - URL must be `https://token.actions.githubusercontent.com`, thumbprint current.
 2. Inspect the target role's trust policy: the `StringEquals`/`StringLike` conditions on `token.actions.githubusercontent.com:sub` and `:aud` must match the current workflow.
 3. Check that the workflow file requests the correct permissions:
    ```yaml
@@ -71,7 +71,7 @@ atmos-aft replaces AFT's long-lived `AWSAFTAdmin` hub role with short-lived OIDC
 **Diagnostics.**
 1. In the target member account, read `AtmosDeploymentRole` trust policy. The `Principal` must be the management-account `AtmosCentralDeploymentRole` ARN (or the management account root if you trust the whole account).
 2. If the trust policy uses a session-name condition (equivalent to AFT's pinned `AWSAFT-Session`), confirm the Atmos hook is setting the session name it expects.
-3. If `sts:ExternalId` is required, confirm the caller supplies it — matrix jobs and workflow_call invocations both need to propagate it.
+3. If `sts:ExternalId` is required, confirm the caller supplies it - matrix jobs and workflow_call invocations both need to propagate it.
 
 **Fix.** Correct the trust policy or the caller's session-name / ExternalId. Audit `CloudTrail` in the member account for `AssumeRole` events with `errorCode: AccessDenied` to see the exact condition that failed.
 
@@ -81,7 +81,7 @@ atmos-aft replaces AFT's long-lived `AWSAFTAdmin` hub role with short-lived OIDC
 
 **Cause.** Either the role's attached policy is too tight, or an SCP at the OU level blocks the action, or the resource has a resource-policy denying the principal.
 
-**Fix.** Read the CloudTrail event's `additionalEventData`: if `policiesEvaluated` includes an SCP denial, escalate to the OU owner. If it is a role-policy gap, expand `AtmosDeploymentRole`'s policy document in the management-account component and re-deploy. For resource-policy denials (S3 bucket policies, KMS key policies), update the resource policy — do not grant `AtmosDeploymentRole` cross-account admin as a workaround.
+**Fix.** Read the CloudTrail event's `additionalEventData`: if `policiesEvaluated` includes an SCP denial, escalate to the OU owner. If it is a role-policy gap, expand `AtmosDeploymentRole`'s policy document in the management-account component and re-deploy. For resource-policy denials (S3 bucket policies, KMS key policies), update the resource policy - do not grant `AtmosDeploymentRole` cross-account admin as a workaround.
 
 ### 2.4 IAM propagation delay after bootstrap
 
@@ -89,7 +89,7 @@ atmos-aft replaces AFT's long-lived `AWSAFTAdmin` hub role with short-lived OIDC
 
 **Cause.** IAM is eventually consistent. Newly created roles, policies, and trust relationships take up to 60 seconds to propagate globally.
 
-**Fix.** Do not chase this in code. Workflows should include a bounded retry at the `configure-aws-credentials` step (retry on `AccessDenied`, max 3 attempts, 20s backoff). Do **not** add `sleep` steps — retry semantics are the correct fix. If retries exhaust, the problem is not propagation; return to §2.1–§2.3.
+**Fix.** Do not chase this in code. Workflows should include a bounded retry at the `configure-aws-credentials` step (retry on `AccessDenied`, max 3 attempts, 20s backoff). Do **not** add `sleep` steps - retry semantics are the correct fix. If retries exhaust, the problem is not propagation; return to §2.1–§2.3.
 
 ### 2.5 Plan-only vs apply role confusion
 
@@ -105,22 +105,22 @@ atmos-aft replaces AFT's long-lived `AWSAFTAdmin` hub role with short-lived OIDC
 
 Account creation goes through Control Tower's Service Catalog product, same as upstream AFT. Failures here are usually Service Catalog's eventual consistency, CT concurrency limits, or request-record mismatches.
 
-### 3.1 Duplicate account request — email or name collision
+### 3.1 Duplicate account request - email or name collision
 
 **Signal.** `provision-account` workflow fails with `ProvisionedProductName already exists` or Service Catalog reports `DuplicateResourceException` on the email address.
 
-**Cause.** The account email is the primary key throughout AFT's model — atmos-aft inherits this invariant. A previous failed provision left a `ProvisionedProduct` record, or the account already exists in Organizations.
+**Cause.** The account email is the primary key throughout AFT's model - atmos-aft inherits this invariant. A previous failed provision left a `ProvisionedProduct` record, or the account already exists in Organizations.
 
 **Fix.**
 1. Check Organizations: `aws organizations list-accounts --query "Accounts[?Email=='<email>']"`. If the account exists, it must be imported, not re-provisioned.
 2. Check Service Catalog: `aws servicecatalog search-provisioned-products --filters SearchQuery="<email>"`. If a terminated/failed `ProvisionedProduct` exists, terminate it cleanly via Service Catalog before retrying.
-3. Never bypass the email PK — pick a new email rather than force-delete records.
+3. Never bypass the email PK - pick a new email rather than force-delete records.
 
 ### 3.2 Control Tower concurrency limit hit
 
 **Signal.** Multiple concurrent `provision-account` jobs fail with `ConcurrentModificationException` or the CT console shows several accounts stuck in `Provisioning` with only one making progress.
 
-**Cause.** Control Tower serialises account lifecycle operations — only one CreateManagedAccount or UpdateManagedAccount may be in flight at a time per landing zone.
+**Cause.** Control Tower serialises account lifecycle operations - only one CreateManagedAccount or UpdateManagedAccount may be in flight at a time per landing zone.
 
 **Fix.** Do **not** run `provision-account` as a broad matrix. Use a single-concurrency GitHub Actions concurrency group:
 ```yaml
@@ -139,7 +139,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 2. GitHub Actions: inspect `repository_dispatch` / `workflow_dispatch` history for the baseline workflow. The triggering event should have been emitted by the CT bridge Lambda (or equivalent).
 3. Confirm the account request record in the request store (DynamoDB table in the management account, equivalent of AFT's `aft-request`) was written and matches the account email.
 
-**Fix.** If the routing dispatch did not fire, run `baseline-account` manually against the new account. File the missed-dispatch incident — routing gaps must not be accepted silently.
+**Fix.** If the routing dispatch did not fire, run `baseline-account` manually against the new account. File the missed-dispatch incident - routing gaps must not be accepted silently.
 
 ### 3.4 `UpdateManagedAccount` path used when CT has no update pending
 
@@ -155,7 +155,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 
 **Cause.** The request dispatcher (FIFO queue consumer, equivalent of AFT's `aft-account-request-processor`) is not draining.
 
-**Diagnostics.** Check the SQS FIFO queue (if used) for message count and DLQ. Check the dispatcher Lambda or workflow for recent invocations. Check for a schema mismatch in the request record — the dispatcher will drop malformed records.
+**Diagnostics.** Check the SQS FIFO queue (if used) for message count and DLQ. Check the dispatcher Lambda or workflow for recent invocations. Check for a schema mismatch in the request record - the dispatcher will drop malformed records.
 
 **Fix.** Repair the dispatcher. Records in the DLQ must be inspected and either re-queued (if transient) or discarded with an explicit ticket (if malformed).
 
@@ -175,7 +175,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 
 **Signal.** A reusable workflow invoked via `workflow_call` fails at OIDC time with `id-token` permission denied, even though the caller set `id-token: write`.
 
-**Cause.** `workflow_call` requires the callee to also declare `permissions:` explicitly. The callee does not inherit the caller's permissions — it inherits the intersection of caller permissions and its own declaration.
+**Cause.** `workflow_call` requires the callee to also declare `permissions:` explicitly. The callee does not inherit the caller's permissions - it inherits the intersection of caller permissions and its own declaration.
 
 **Fix.** Add `permissions: id-token: write, contents: read` to the reusable workflow's top-level block.
 
@@ -193,7 +193,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 
 **Cause.** Default OIDC session is one hour. Large applies (Config recorders, many CloudTrail trails, full SecurityHub enablement) can exceed that.
 
-**Fix.** Set `role-duration-seconds` on `aws-actions/configure-aws-credentials` up to the role's `MaxSessionDuration` (set the role's max to 4h where needed; never exceed 12h). Do **not** refresh credentials mid-apply — Terraform cannot pick up a new session cleanly.
+**Fix.** Set `role-duration-seconds` on `aws-actions/configure-aws-credentials` up to the role's `MaxSessionDuration` (set the role's max to 4h where needed; never exceed 12h). Do **not** refresh credentials mid-apply - Terraform cannot pick up a new session cleanly.
 
 ### 4.5 `repository_dispatch` event never received
 
@@ -202,9 +202,9 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 **Diagnostics.**
 1. The dispatching token must have `repo` scope (or `actions: write` on a fine-grained token).
 2. The target workflow must have `on: repository_dispatch: types: [<type>]` listing the exact type string.
-3. The target workflow must exist on the **default branch** — `repository_dispatch` always runs the default branch copy.
+3. The target workflow must exist on the **default branch** - `repository_dispatch` always runs the default branch copy.
 
-**Fix.** Correct the branch/type/token. Do not debug with `workflow_dispatch` as a substitute — the routing contract depends on `repository_dispatch`.
+**Fix.** Correct the branch/type/token. Do not debug with `workflow_dispatch` as a substitute - the routing contract depends on `repository_dispatch`.
 
 ---
 
@@ -219,7 +219,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 **Fix.**
 1. Rebase onto `main` and re-run.
 2. Verify the change is under a path Atmos considers a component source. Helper scripts called from a component should live inside the component dir.
-3. As a last resort, force a full-fleet run via the `workflow_dispatch` scheduled-drift workflow — but capture the miss as a detection bug and fix affected-detection.
+3. As a last resort, force a full-fleet run via the `workflow_dispatch` scheduled-drift workflow - but capture the miss as a detection bug and fix affected-detection.
 
 ### 5.2 `atmos validate stacks` fails on a stack you did not touch
 
@@ -227,7 +227,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 
 **Cause.** Catalog imports are transitive. A change to a shared catalog file propagates to every stack that imports it.
 
-**Fix.** Read the validation error. The fix is almost always in the catalog file, not the stack — revert or correct the catalog change. Atmos's import graph makes this a feature: a broken catalog fails every importer loudly rather than silently.
+**Fix.** Read the validation error. The fix is almost always in the catalog file, not the stack - revert or correct the catalog change. Atmos's import graph makes this a feature: a broken catalog fails every importer loudly rather than silently.
 
 ### 5.3 Forbidden component attempted
 
@@ -235,7 +235,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 
 **Cause.** Someone attempted to manage CT-owned resources from atmos-aft. These are forbidden under the coexistence contract.
 
-**Fix.** Remove the component from the stack. Organizations, OUs, and account creation are CT-owned — they must never appear in an atmos-aft plan. Do not disable the OPA check.
+**Fix.** Remove the component from the stack. Organizations, OUs, and account creation are CT-owned - they must never appear in an atmos-aft plan. Do not disable the OPA check.
 
 ### 5.4 Config/GuardDuty/Inspector conflict with CT-managed resource
 
@@ -262,11 +262,11 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 **Signal.** `terraform plan`/`apply` fails with `Error acquiring the state lock`. DynamoDB-based locking is the upstream AFT path; atmos-aft uses S3-native locking (`use_lockfile = true`).
 
 **Diagnostics.**
-1. Check the S3 backend bucket for a `<key>.tflock` object. Inspect its metadata — it records the runner that holds it.
+1. Check the S3 backend bucket for a `<key>.tflock` object. Inspect its metadata - it records the runner that holds it.
 2. Check the Actions run corresponding to that runner. If it is still running, wait.
 3. If the run has terminated (failed, cancelled) and the lock persists, it is orphaned.
 
-**Fix.** For an orphaned lock: delete the `.tflock` object in S3 after verifying the runner is not active. Do **not** `-lock=false` — that bypass will corrupt state under concurrent writes. If this happens frequently, the workflow is not cleaning up on cancellation; add a `post-run` step that releases the lock.
+**Fix.** For an orphaned lock: delete the `.tflock` object in S3 after verifying the runner is not active. Do **not** `-lock=false` - that bypass will corrupt state under concurrent writes. If this happens frequently, the workflow is not cleaning up on cancellation; add a `post-run` step that releases the lock.
 
 ### 6.2 State backend access denied from plan role
 
@@ -314,7 +314,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 
 ### 7.3 Provisioning SFN → GHA rewrite: step ordering broken
 
-**Signal.** During migration, a customer's previously-working AFT account-provisioning state machine does not behave the same when ported to GitHub Actions — downstream steps run before upstream ones complete.
+**Signal.** During migration, a customer's previously-working AFT account-provisioning state machine does not behave the same when ported to GitHub Actions - downstream steps run before upstream ones complete.
 
 **Cause.** SFN's `Next`/`Choice` semantics are explicit; GHA `needs:` is likewise explicit but matrix fan-out without a synchronising `needs` can parallelise steps that used to be serial.
 
@@ -324,7 +324,7 @@ If multiple provisions queued outside this guard, cancel all but one, wait for t
 
 **Signal.** Customization tries to modify a CloudTrail trail, Config recorder, or other CT-managed resource and fails with `cannot modify CT-owned resource`.
 
-**Cause.** Customer ported a customization that was already broken in AFT — or worked in AFT only because AFT ran with a role that had broader privileges than our least-privilege `AtmosDeploymentRole`.
+**Cause.** Customer ported a customization that was already broken in AFT - or worked in AFT only because AFT ran with a role that had broader privileges than our least-privilege `AtmosDeploymentRole`.
 
 **Fix.** Remove the customization. CT-owned resources are off-limits to customizations regardless of role privilege. If the customer needs to extend CT behaviour (e.g., forward CloudTrail logs elsewhere), do it through a separate trail, not by modifying the CT trail.
 
@@ -372,7 +372,7 @@ If an account appears in Organizations but is not enrolled in CT, or is enrolled
 
 ### 9.2 Losing credentials mid-flight
 
-If `AtmosCentralDeploymentRole` or `AtmosDeploymentRole` is deleted or has its trust policy corrupted while runs are in flight, all in-flight runs will fail on their next AWS call. Do not attempt to "recover" a run — let it fail cleanly, fix the trust policy, and re-run.
+If `AtmosCentralDeploymentRole` or `AtmosDeploymentRole` is deleted or has its trust policy corrupted while runs are in flight, all in-flight runs will fail on their next AWS call. Do not attempt to "recover" a run - let it fail cleanly, fix the trust policy, and re-run.
 
 ### 9.3 Full-fleet drift after an upstream module change
 
@@ -392,7 +392,7 @@ Incident tickets should capture: affected account IDs, workflow run URL, first f
 
 ---
 
-## Appendix A — Diagnostic command reference
+## Appendix A - Diagnostic command reference
 
 ```bash
 # List all accounts in Organizations with OU path
@@ -420,7 +420,7 @@ atmos describe affected --format matrix \
 atmos validate stacks
 ```
 
-## Appendix B — Common error-to-section index
+## Appendix B - Common error-to-section index
 
 | Error text (substring) | See section |
 | --- | --- |

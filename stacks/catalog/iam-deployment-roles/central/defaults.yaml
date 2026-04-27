@@ -9,7 +9,7 @@ components:
       vars:
         github_org: !template "{{ .settings.github_org }}"
         github_repo: !template "{{ .settings.github_repo }}"
-        # The OIDC provider ARN is deterministic given the account ID — no need
+        # The OIDC provider ARN is deterministic given the account ID - no need
         # to remote-state-lookup the github-oidc-provider component.
         github_oidc_provider_arn: !template "arn:aws:iam::{{ .settings.aft_mgmt_account_id }}:oidc-provider/token.actions.githubusercontent.com"
         max_session_duration: 3600

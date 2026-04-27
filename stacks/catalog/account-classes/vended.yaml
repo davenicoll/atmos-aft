@@ -1,7 +1,7 @@
-# Vended account class — every non-core account created via account-provisioning.
+# Vended account class - every non-core account created via account-provisioning.
 # Bootstrap role defaults to AWSControlTowerExecution (the role CT stamps into
 # every enrolled account). Trust policy on AtmosDeploymentRole in vended
-# accounts omits sts:ExternalId — see gha-design.md §4.6.
+# accounts omits sts:ExternalId - see gha-design.md §4.6.
 vars:
   account_class: vended
   bootstrap_role: AWSControlTowerExecution

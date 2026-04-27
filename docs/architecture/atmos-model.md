@@ -1,6 +1,6 @@
 # Atmos Model for a Multi-Account AWS Factory
 
-This document is the ground-truth description of the Cloudposse Atmos configuration and execution model as it applies to building an AWS multi-account "account factory" — an AFT replacement. It is aimed at engineers who have never used Atmos. Every non-obvious claim cites a file under `reference/atmos/`.
+This document is the ground-truth description of the Cloudposse Atmos configuration and execution model as it applies to building an AWS multi-account "account factory" - an AFT replacement. It is aimed at engineers who have never used Atmos. Every non-obvious claim cites a file under `reference/atmos/`.
 
 Scope: the parts of Atmos that matter for provisioning and operating many AWS accounts from YAML configuration driven by GitHub Actions. Atmos features that are out of scope for this project (Helmfile, Packer, Ansible, Spacelift/Atlantis, the TUI) are mentioned only where a reader needs to understand the shape of the system.
 
@@ -10,31 +10,31 @@ Scope: the parts of Atmos that matter for provisioning and operating many AWS ac
 
 Atmos is, at its core, a YAML configuration engine plus a thin Terraform wrapper. You write two things:
 
-1. **Components** — Terraform root modules under `components/terraform/<name>/`. These are implementation: `.tf` files, resources, inputs, outputs. They know nothing about environments, accounts, or regions.
-2. **Stacks** — YAML files under `stacks/` that configure which component instances exist, in which account and region, with which variables and which backend.
+1. **Components** - Terraform root modules under `components/terraform/<name>/`. These are implementation: `.tf` files, resources, inputs, outputs. They know nothing about environments, accounts, or regions.
+2. **Stacks** - YAML files under `stacks/` that configure which component instances exist, in which account and region, with which variables and which backend.
 
-A *stack* in Atmos is a logical environment — a named slice of your infrastructure such as `plat-ue2-prod`. A *component instance* is one component configured inside one stack. Atmos turns `(component, stack)` into a concrete Terraform run: resolved variables, resolved backend, resolved workspace, resolved AWS identity.
+A *stack* in Atmos is a logical environment - a named slice of your infrastructure such as `plat-ue2-prod`. A *component instance* is one component configured inside one stack. Atmos turns `(component, stack)` into a concrete Terraform run: resolved variables, resolved backend, resolved workspace, resolved AWS identity.
 
-`reference/atmos/website/docs/components/components-overview.mdx:17-33` makes the separation explicit: "Components … consist of two parts: Implementation — the infrastructure code itself … and Configuration — the settings that customize how the component is deployed in each environment."
+`reference/atmos/website/docs/components/components-overview.mdx:17-33` makes the separation explicit: "Components … consist of two parts: Implementation - the infrastructure code itself … and Configuration - the settings that customize how the component is deployed in each environment."
 
 All Atmos behavior flows from one data-transformation pipeline, described in the top-level `reference/atmos/CLAUDE.md` as "Load atmos.yaml → process imports/inheritance → apply overrides → render templates → generate config." Everything below is an elaboration of that one sentence.
 
 ---
 
-## 2. `atmos.yaml` — the project root
+## 2. `atmos.yaml` - the project root
 
 `atmos.yaml` at the repo root tells Atmos where everything lives. Loading precedence is `system dir → ~/.atmos → current directory → env vars → CLI flags` (`reference/atmos/examples/quick-start-advanced/atmos.yaml:1-9`). For our factory we will commit one `atmos.yaml` at the repo root; machine-local overrides are not wanted.
 
 Key sections relevant to us (all from `reference/atmos/examples/quick-start-advanced/atmos.yaml`):
 
-- `base_path: "."` — root of the Atmos project (line 18).
-- `components.terraform.base_path: "components/terraform"` — where root modules live (line 34). `auto_generate_backend_file: true` (line 42) tells Atmos to write `backend.tf.json` next to the module before each run.
-- `stacks.base_path: "stacks"` (line 61), `stacks.included_paths: ["orgs/**/*"]` (line 64), `stacks.excluded_paths: ["**/_defaults.yaml"]` (line 67) — defines which YAML files are real top-level stacks vs import fragments.
-- `stacks.name_pattern: "{tenant}-{environment}-{stage}"` (line 69) — the logical stack identifier used on the `-s` flag. For AFT, this is how a caller says "this account, this region." `name_template` (Go template over `.vars`) is the more flexible modern form (`reference/atmos/website/docs/stacks/name.mdx:40-45`).
-- `workflows.base_path: "stacks/workflows"` (line 74) — workflow definitions (see §7).
-- `schemas.jsonschema` and `schemas.opa` (lines 183-192) — validation rules applied to component configs.
-- `templates.settings.enabled: true` with Sprig and Gomplate (lines 210-221) — turns on Go-template processing inside stack YAML.
-- `settings.list_merge_strategy` (lines 223-234) — controls how lists in stack manifests merge across imports (`replace` default; `append` and `merge` available).
+- `base_path: "."` - root of the Atmos project (line 18).
+- `components.terraform.base_path: "components/terraform"` - where root modules live (line 34). `auto_generate_backend_file: true` (line 42) tells Atmos to write `backend.tf.json` next to the module before each run.
+- `stacks.base_path: "stacks"` (line 61), `stacks.included_paths: ["orgs/**/*"]` (line 64), `stacks.excluded_paths: ["**/_defaults.yaml"]` (line 67) - defines which YAML files are real top-level stacks vs import fragments.
+- `stacks.name_pattern: "{tenant}-{environment}-{stage}"` (line 69) - the logical stack identifier used on the `-s` flag. For AFT, this is how a caller says "this account, this region." `name_template` (Go template over `.vars`) is the more flexible modern form (`reference/atmos/website/docs/stacks/name.mdx:40-45`).
+- `workflows.base_path: "stacks/workflows"` (line 74) - workflow definitions (see §7).
+- `schemas.jsonschema` and `schemas.opa` (lines 183-192) - validation rules applied to component configs.
+- `templates.settings.enabled: true` with Sprig and Gomplate (lines 210-221) - turns on Go-template processing inside stack YAML.
+- `settings.list_merge_strategy` (lines 223-234) - controls how lists in stack manifests merge across imports (`replace` default; `append` and `merge` available).
 
 The file also hosts top-level sections we will rely on heavily: `auth:` (identities and providers, §9), `stores:` (external KV backends, §8), and `commands:` (custom CLI sub-commands, §10).
 
@@ -66,19 +66,19 @@ Inheritance is **entirely explicit**: there is no implicit "apply parent directo
 
 ### 3.2 Imports
 
-`import:` is a list of paths, each resolved relative to `stacks.base_path` by default, or relative to the current file when prefixed with `./` or `../` (`reference/atmos/website/docs/stacks/imports.mdx:49-67`). Each listed import is deep-merged on top of what came before — later entries win on scalar conflicts; maps merge; lists use the configured list strategy.
+`import:` is a list of paths, each resolved relative to `stacks.base_path` by default, or relative to the current file when prefixed with `./` or `../` (`reference/atmos/website/docs/stacks/imports.mdx:49-67`). Each listed import is deep-merged on top of what came before - later entries win on scalar conflicts; maps merge; lists use the configured list strategy.
 
 Imports can be:
 
-- **Local paths** — `orgs/acme/_defaults`, `catalog/vpc/defaults`. `.yaml` is auto-appended. If both `foo.yaml` and `foo.yaml.tmpl` exist, Atmos prefers the template (`reference/atmos/website/docs/stacks/imports.mdx:38-47`).
-- **Remote paths** — go-getter URLs: `git::…?ref=v1.0.0`, `github.com/org/repo//path?ref=…`, `s3::…`, `gcs::…`, `https://…`, `file://…` (`reference/atmos/website/docs/stacks/imports.mdx:72-138`).
-- **Templated imports** — `path:` with a `context:` map parameterizes an imported `.yaml.tmpl` file. Context passes down through nested imports; child context overrides parent on conflict (`reference/atmos/website/docs/stacks/imports.mdx:192-465`).
+- **Local paths** - `orgs/acme/_defaults`, `catalog/vpc/defaults`. `.yaml` is auto-appended. If both `foo.yaml` and `foo.yaml.tmpl` exist, Atmos prefers the template (`reference/atmos/website/docs/stacks/imports.mdx:38-47`).
+- **Remote paths** - go-getter URLs: `git::…?ref=v1.0.0`, `github.com/org/repo//path?ref=…`, `s3::…`, `gcs::…`, `https://…`, `file://…` (`reference/atmos/website/docs/stacks/imports.mdx:72-138`).
+- **Templated imports** - `path:` with a `context:` map parameterizes an imported `.yaml.tmpl` file. Context passes down through nested imports; child context overrides parent on conflict (`reference/atmos/website/docs/stacks/imports.mdx:192-465`).
 
 Templated imports are the mechanism that makes a single "account blueprint" template usable to materialize many accounts by parameter. For the factory, this is how we can get from "account request YAML" to "stack config for that account" without writing one file per account.
 
 ### 3.3 The `_defaults.yaml` convention
 
-`_defaults.yaml` files at each directory level hold shared values for that level (`reference/atmos/website/docs/design-patterns/stack-organization/organizational-hierarchy-configuration.mdx:57-67`). The underscore prefix is two things: it sorts to the top of listings, and it matches the `excluded_paths: ["**/_defaults.yaml"]` rule so these files are not themselves treated as top-level stacks. They are plain imports — they do nothing until imported explicitly by a child.
+`_defaults.yaml` files at each directory level hold shared values for that level (`reference/atmos/website/docs/design-patterns/stack-organization/organizational-hierarchy-configuration.mdx:57-67`). The underscore prefix is two things: it sorts to the top of listings, and it matches the `excluded_paths: ["**/_defaults.yaml"]` rule so these files are not themselves treated as top-level stacks. They are plain imports - they do nothing until imported explicitly by a child.
 
 The pattern: each level imports the level above, so a leaf file imports one `_defaults.yaml` and gets the entire chain. From the quick-start-advanced example:
 
@@ -109,13 +109,13 @@ For the factory we will use `name_template: "{{ .vars.tenant }}-{{ .vars.environ
 
 ### 4.1 Terraform components
 
-A Terraform component is a *root module* — its own `main.tf`/`variables.tf`/`outputs.tf` under `components/terraform/<name>/`. It is initialized and run in place: Atmos writes `backend.tf.json`, a generated `.tfvars`, and optionally a provider override, then calls `terraform init`, `terraform workspace select`, and the requested subcommand in that directory (`reference/atmos/website/docs/functions/yaml/terraform.output.mdx:62-89` describes the execution sequence).
+A Terraform component is a *root module* - its own `main.tf`/`variables.tf`/`outputs.tf` under `components/terraform/<name>/`. It is initialized and run in place: Atmos writes `backend.tf.json`, a generated `.tfvars`, and optionally a provider override, then calls `terraform init`, `terraform workspace select`, and the requested subcommand in that directory (`reference/atmos/website/docs/functions/yaml/terraform.output.mdx:62-89` describes the execution sequence).
 
 Key Atmos-generated files per run:
 
-- `backend.tf.json` — from the stack's `backend_type` + `backend` sections (`reference/atmos/website/docs/stacks/backend.mdx:22-31`). Should be gitignored.
-- `<component>.terraform.tfvars.json` — the resolved `vars` for that component.
-- `providers_override.tf.json` — if `providers:` was set in the stack (`reference/atmos/website/docs/stacks/providers.mdx`).
+- `backend.tf.json` - from the stack's `backend_type` + `backend` sections (`reference/atmos/website/docs/stacks/backend.mdx:22-31`). Should be gitignored.
+- `<component>.terraform.tfvars.json` - the resolved `vars` for that component.
+- `providers_override.tf.json` - if `providers:` was set in the stack (`reference/atmos/website/docs/stacks/providers.mdx`).
 
 The workspace name is computed from stack name + component (or from `metadata.terraform_workspace_pattern`). Workspaces give state isolation per `(component, stack)` when backends are shared.
 
@@ -131,7 +131,7 @@ A *catalog* entry is a YAML file under `stacks/catalog/<component>/…` that dec
 
 ## 5. Vendoring upstream components
 
-Our `components/terraform/` will not be hand-authored modules — we will vendor upstream modules (Cloudposse's `terraform-aws-components`, others) into the repo. Atmos ships a vendor manifest format for this.
+Our `components/terraform/` will not be hand-authored modules - we will vendor upstream modules (Cloudposse's `terraform-aws-components`, others) into the repo. Atmos ships a vendor manifest format for this.
 
 `vendor.yaml` (file location from `vendor.base_path` in `atmos.yaml`):
 
@@ -151,9 +151,9 @@ spec:
 
 From `reference/atmos/examples/quick-start-advanced/vendor.yaml:10-34`. `source` supports go-getter (git/https/s3/gcs/oci/local). `{{.Version}}` interpolates `version:`. `included_paths`/`excluded_paths` let us strip `providers.tf` files that would conflict with Atmos's generated provider override. `tags:` lets `atmos vendor pull --tags networking` pull a subset.
 
-Vendor manifests can also be a directory of files — Atmos processes them lexicographically (`reference/atmos/website/docs/cli/configuration/vendor.mdx:146-164`).
+Vendor manifests can also be a directory of files - Atmos processes them lexicographically (`reference/atmos/website/docs/cli/configuration/vendor.mdx:146-164`).
 
-Components can also ship their own `component.yaml` manifest (component-manifest form) — useful when an upstream component publishes its own pinned set of sub-dependencies.
+Components can also ship their own `component.yaml` manifest (component-manifest form) - useful when an upstream component publishes its own pinned set of sub-dependencies.
 
 `atmos vendor pull [--component <name>] [--tags …]` is the command. In the factory, this runs once on a cadence (dependabot-style) to refresh the vendored modules; the pulled diff goes through PR review like any other change.
 
@@ -164,30 +164,30 @@ Components can also ship their own `component.yaml` manifest (component-manifest
 Organized by workflow stage:
 
 **Discover**
-- `atmos list stacks` — all top-level stacks Atmos sees.
-- `atmos list components` — unique component definitions across stacks.
-- `atmos list instances [-s <glob>] [--format matrix -o $GITHUB_OUTPUT]` — every `(component, stack)` pair, with glob filter. `--format matrix` emits GitHub Actions matrix output (`reference/atmos/website/docs/cli/commands/list/list-instances.mdx:32-64`).
-- `atmos describe stacks [--stack …] [--components …] [--sections …] [--format json]` — full resolved config for stacks.
-- `atmos describe component <component> -s <stack>` — resolved config for one instance. Produces the same data Atmos would use when provisioning.
-- `atmos describe affected [--base <ref>] [--format matrix -o $GITHUB_OUTPUT]` — Git-diff-aware list of affected `(component, stack)` pairs, plus deletions (`reference/atmos/website/docs/integrations/github-actions/affected-stacks.mdx:31-101`, `reference/atmos/website/docs/cli/commands/describe/describe-affected.mdx:46-118`). With `ci.enabled: true` in `atmos.yaml`, the base ref is auto-resolved from `GITHUB_BASE_REF` / push event payload — no `--base` needed (lines 32-117).
+- `atmos list stacks` - all top-level stacks Atmos sees.
+- `atmos list components` - unique component definitions across stacks.
+- `atmos list instances [-s <glob>] [--format matrix -o $GITHUB_OUTPUT]` - every `(component, stack)` pair, with glob filter. `--format matrix` emits GitHub Actions matrix output (`reference/atmos/website/docs/cli/commands/list/list-instances.mdx:32-64`).
+- `atmos describe stacks [--stack …] [--components …] [--sections …] [--format json]` - full resolved config for stacks.
+- `atmos describe component <component> -s <stack>` - resolved config for one instance. Produces the same data Atmos would use when provisioning.
+- `atmos describe affected [--base <ref>] [--format matrix -o $GITHUB_OUTPUT]` - Git-diff-aware list of affected `(component, stack)` pairs, plus deletions (`reference/atmos/website/docs/integrations/github-actions/affected-stacks.mdx:31-101`, `reference/atmos/website/docs/cli/commands/describe/describe-affected.mdx:46-118`). With `ci.enabled: true` in `atmos.yaml`, the base ref is auto-resolved from `GITHUB_BASE_REF` / push event payload - no `--base` needed (lines 32-117).
 
 **Plan / apply**
-- `atmos terraform init <component> -s <stack>` — usually implicit; `components.terraform.deploy_run_init: true` in `atmos.yaml` has the same effect during deploys.
-- `atmos terraform plan <component> -s <stack> [--ci]` — with `--ci`, writes a rich GitHub job summary, outputs (`has_changes`, `has_additions`, `has_destructions`, `plan_summary`) to `$GITHUB_OUTPUT`, and can upload the planfile to a configured store (`reference/atmos/website/docs/ci/ci.mdx:26-107`).
-- `atmos terraform apply <component> -s <stack>` — plan + apply.
-- `atmos terraform deploy <component> -s <stack>` — plan + apply with stored-planfile verification and drift detection against a prior plan.
-- `atmos terraform destroy <component> -s <stack>` — destroy one instance.
-- `atmos terraform planfile {upload|download|list|delete|show}` — manage the planfile store (S3 / GitHub Artifacts / local) for multi-stage pipelines.
+- `atmos terraform init <component> -s <stack>` - usually implicit; `components.terraform.deploy_run_init: true` in `atmos.yaml` has the same effect during deploys.
+- `atmos terraform plan <component> -s <stack> [--ci]` - with `--ci`, writes a rich GitHub job summary, outputs (`has_changes`, `has_additions`, `has_destructions`, `plan_summary`) to `$GITHUB_OUTPUT`, and can upload the planfile to a configured store (`reference/atmos/website/docs/ci/ci.mdx:26-107`).
+- `atmos terraform apply <component> -s <stack>` - plan + apply.
+- `atmos terraform deploy <component> -s <stack>` - plan + apply with stored-planfile verification and drift detection against a prior plan.
+- `atmos terraform destroy <component> -s <stack>` - destroy one instance.
+- `atmos terraform planfile {upload|download|list|delete|show}` - manage the planfile store (S3 / GitHub Artifacts / local) for multi-stage pipelines.
 
 **Vendor**
-- `atmos vendor pull [--component …] [--tags …]` — materialize upstream sources into `components/`.
+- `atmos vendor pull [--component …] [--tags …]` - materialize upstream sources into `components/`.
 
 **Workflows**
-- `atmos workflow <name> [--file <file>] [--from-step <step>] [--dry-run]` — see §7.
+- `atmos workflow <name> [--file <file>] [--from-step <step>] [--dry-run]` - see §7.
 
 **Validate**
-- `atmos validate stacks` — JSON Schema + OPA validation.
-- `atmos validate component <component> -s <stack>` — run OPA/JSON Schema policies tied to a component instance.
+- `atmos validate stacks` - JSON Schema + OPA validation.
+- `atmos validate component <component> -s <stack>` - run OPA/JSON Schema policies tied to a component instance.
 
 CI flag: setting `--ci` on plan/apply/deploy (or `ci.enabled: true` in `atmos.yaml`) enables job summaries to `$GITHUB_STEP_SUMMARY`, live status checks (requires `GITHUB_TOKEN`), and output variables (`reference/atmos/website/docs/ci/ci.mdx:88-121`). Auto-detects when running in GitHub Actions.
 
@@ -209,7 +209,7 @@ workflows:
       - ...
 ```
 
-Steps can be `atmos` commands (implicit) or shell commands with `type: shell` (`reference/atmos/website/docs/cli/configuration/workflows.mdx:85-138`). Each step runs in its own subprocess — step-level `env:` does not propagate. `working_directory:` may be set at workflow or step level; `!repo-root` YAML function resolves to the git root.
+Steps can be `atmos` commands (implicit) or shell commands with `type: shell` (`reference/atmos/website/docs/cli/configuration/workflows.mdx:85-138`). Each step runs in its own subprocess - step-level `env:` does not propagate. `working_directory:` may be set at workflow or step level; `!repo-root` YAML function resolves to the git root.
 
 Each workflow supports `env:` at workflow and step level; env precedence is `system → atmos.yaml global → workflow env → step env → auth identity env` (line 162-171).
 
@@ -227,7 +227,7 @@ Multi-account factories constantly need outputs from one stack read by another s
 
 ### 8.1 `!terraform.output` (expensive, zero-config)
 
-`!terraform.output <component> [<stack>] <output-or-yq>` in any stack YAML. Atmos resolves by initializing the referenced component in the referenced stack and running `terraform output` (`reference/atmos/website/docs/functions/yaml/terraform.output.mdx:62-107`). Expensive — `init` + `output` per reference — so the docs recommend `!store` or `!terraform.state` in CI.
+`!terraform.output <component> [<stack>] <output-or-yq>` in any stack YAML. Atmos resolves by initializing the referenced component in the referenced stack and running `terraform output` (`reference/atmos/website/docs/functions/yaml/terraform.output.mdx:62-107`). Expensive - `init` + `output` per reference - so the docs recommend `!store` or `!terraform.state` in CI.
 
 ### 8.2 `!terraform.state` (cheap)
 
@@ -285,8 +285,8 @@ For an AFT replacement, the pattern is: baseline components publish their output
 
 `auth:` in `atmos.yaml` defines `providers` and `identities` (`reference/atmos/website/docs/stacks/auth.mdx:64-170`):
 
-- **Providers** — how Atmos gets credentials. Kinds include `aws/iam-identity-center` (AWS SSO), `aws/ambient` (IRSA / EC2 instance profile / ECS task role — trusts the SDK chain), and cloud-agnostic `ambient`. Azure and GCP kinds exist but are not relevant here.
-- **Identities** — concrete AWS principals. Kinds include `aws/permission-set` (via SSO), `aws/assume-role` (via another identity), `aws/ambient`. Each identity has `via:` (the chain), `principal:` (role ARN or permission-set + account), and optional `env:` (extra env vars to set for subprocesses).
+- **Providers** - how Atmos gets credentials. Kinds include `aws/iam-identity-center` (AWS SSO), `aws/ambient` (IRSA / EC2 instance profile / ECS task role - trusts the SDK chain), and cloud-agnostic `ambient`. Azure and GCP kinds exist but are not relevant here.
+- **Identities** - concrete AWS principals. Kinds include `aws/permission-set` (via SSO), `aws/assume-role` (via another identity), `aws/ambient`. Each identity has `via:` (the chain), `principal:` (role ARN or permission-set + account), and optional `env:` (extra env vars to set for subprocesses).
 
 Two patterns matter to us:
 
@@ -307,7 +307,7 @@ components:
 
 (`reference/atmos/website/docs/stacks/auth.mdx:54-62`).
 
-`auth.realm:` (or `ATMOS_AUTH_REALM`) isolates cached credentials per project — relevant when one runner hosts more than one Atmos repo (`reference/atmos/website/docs/stacks/auth.mdx:384-444`).
+`auth.realm:` (or `ATMOS_AUTH_REALM`) isolates cached credentials per project - relevant when one runner hosts more than one Atmos repo (`reference/atmos/website/docs/stacks/auth.mdx:384-444`).
 
 ### 9.2 Backend per account
 
@@ -328,13 +328,13 @@ terraform:
 
 Atmos regenerates `backend.tf.json` on each run; **do not commit it**.
 
-### 9.3 State backend topology — decided
+### 9.3 State backend topology - decided
 
 Resolves [`archive/review.md`](archive/review.md) Blocker 3 (archived Phase 1 review). `§9.2` above is the Atmos-mechanics primer; this subsection is the concrete topology the factory ships. Terms: *account state* = state for every component applied inside a vended/managed account. *Bootstrap state* = the one-per-account `tfstate-backend` component's own state.
 
 **Decision.** Per-account primary backend for everything except `tfstate-backend` itself; **central bootstrap backend** in aft-mgmt for `tfstate-backend`'s state. S3-only, native S3 locking (`use_lockfile: true`, no DDB). Single-region per account; no cross-region replication.
 
-Rationale. Per-account buckets align with the "self-contained account" philosophy adopted elsewhere in the design (per-account IAM, per-account KMS, per-account budgets) and mean a blast radius contained to one account for any state-bucket incident. A fleet-wide central backend would concentrate the risk, and drift-detection already works fine against per-account buckets because each `(component, stack)` plan runs under the target's own assumed role. The central bootstrap bucket exists only to break the chicken-and-egg for `tfstate-backend` itself — it never holds anything else.
+Rationale. Per-account buckets align with the "self-contained account" philosophy adopted elsewhere in the design (per-account IAM, per-account KMS, per-account budgets) and mean a blast radius contained to one account for any state-bucket incident. A fleet-wide central backend would concentrate the risk, and drift-detection already works fine against per-account buckets because each `(component, stack)` plan runs under the target's own assumed role. The central bootstrap bucket exists only to break the chicken-and-egg for `tfstate-backend` itself - it never holds anything else.
 
 #### 9.3.1 Buckets, keys, and addressing
 
@@ -464,7 +464,7 @@ Matching S3 bucket policy on `atmos-tfstate-<account-id>-<region>`:
 
 `AtmosReadAllStateRole` lives in aft-mgmt with an empty trust policy except for `AtmosCentralDeploymentRole` and the drift-detection workflow's OIDC subject claim. Its permissions boundary enforces read-only: deny every `s3:Put*`, `s3:Delete*`, `kms:Encrypt*`, `kms:GenerateDataKey*`. This role is what the drift aggregator and summary-collector jobs (`gha-design.md` §5.5 and the `post-plan-summary` composite) assume when they need to touch state from more than one account in a single step. Per-account `(component, stack)` plans continue to run under the regular central → target deployment chain; the read-only role is only used when a step genuinely spans accounts.
 
-The bootstrap-bucket CMK (`alias/atmos-tfstate-bootstrap` in aft-mgmt) uses a simpler policy: root + `AtmosCentralDeploymentRole` full use + `AtmosReadAllStateRole` decrypt-only. No per-target-account grants needed — the bootstrap bucket is written only from aft-mgmt.
+The bootstrap-bucket CMK (`alias/atmos-tfstate-bootstrap` in aft-mgmt) uses a simpler policy: root + `AtmosCentralDeploymentRole` full use + `AtmosReadAllStateRole` decrypt-only. No per-target-account grants needed - the bootstrap bucket is written only from aft-mgmt.
 
 #### 9.3.3 Bootstrap order
 
@@ -475,9 +475,9 @@ The only manual-state moment in the lifecycle. Encoded as `bootstrap.yaml` (`gha
 2. **Operator migrates the bootstrap bucket's own state into itself.** `terraform init -migrate-state -backend-config='bucket=atmos-tfstate-bootstrap-<aft-mgmt-id>-<region>' -backend-config='key=bootstrap/self/terraform.tfstate' -backend-config='region=<region>' -backend-config='kms_key_id=alias/atmos-tfstate-bootstrap'`. Terraform prompts to copy state; confirm. Delete the local `terraform.tfstate` afterward. This is the only `migrate-state` in the system.
 
 3. **GHA `bootstrap.yaml` runs** under access-key identity (`AtmosBootstrapUser`, §`gha-design.md` 4.2) to create the rest of the aft-mgmt plane:
-   - Apply `github-oidc-provider` — state goes directly into the central bootstrap bucket under `bootstrap/<aft-mgmt-id>/github-oidc-provider/terraform.tfstate`. Reusing the bootstrap bucket here avoids a second manual step; migrating this state to aft-mgmt's primary bucket is a later housekeeping task.
-   - Apply `iam-deployment-roles/central` — creates `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`. State as above.
-   - Apply aft-mgmt's own `tfstate-backend` component — creates `atmos-tfstate-<aft-mgmt-id>-<region>` (primary bucket + CMK). State in the central bootstrap bucket at `bootstrap/<aft-mgmt-id>/tfstate-backend/terraform.tfstate`.
+   - Apply `github-oidc-provider` - state goes directly into the central bootstrap bucket under `bootstrap/<aft-mgmt-id>/github-oidc-provider/terraform.tfstate`. Reusing the bootstrap bucket here avoids a second manual step; migrating this state to aft-mgmt's primary bucket is a later housekeeping task.
+   - Apply `iam-deployment-roles/central` - creates `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`. State as above.
+   - Apply aft-mgmt's own `tfstate-backend` component - creates `atmos-tfstate-<aft-mgmt-id>-<region>` (primary bucket + CMK). State in the central bootstrap bucket at `bootstrap/<aft-mgmt-id>/tfstate-backend/terraform.tfstate`.
 
 4. **For every subsequent account vended by `provision-account.yaml`** (`gha-design.md` §5.3), the state-backend step runs as job 3 under `AtmosCentralDeploymentRole`:
    - Input: the new account ID from the `account-provisioning` step.
@@ -488,7 +488,7 @@ The only manual-state moment in the lifecycle. Encoded as `bootstrap.yaml` (`gha
 
 5. **No migration ever happens for account state.** Every workload component's first apply writes directly to the per-account bucket because it exists by the time that job runs.
 
-#### 9.3.4 DR / dual-region — deferred
+#### 9.3.4 DR / dual-region - deferred
 
 atmos-aft is single-region per account. AFT's dual-region CMK + cross-region S3 replication (`aft-analysis.md` §7.1) is not implemented. Reasons: (a) S3 is already 11-nines durable within a region; state loss risk is operator error, not infrastructure failure; (b) replicated state across regions requires a conflict-resolution story that AFT fudges by write-to-primary-only, which is the same posture single-region gives us; (c) adding cross-region replication to the per-account backend adds one CMK + one bucket + one replication role per account, multiplying blast radius for bootstrap errors.
 
@@ -496,18 +496,18 @@ If DR becomes a requirement, add an optional `secondary_region` variable to the 
 
 #### 9.3.5 Open knobs tracked elsewhere
 
-- `tfstate-backend`'s aft-mgmt state is kept in the central bootstrap bucket as a simplification. Moving it to aft-mgmt's primary bucket (so the bootstrap bucket holds nothing but other accounts' bootstrap keys) is a housekeeping task — not on the critical path.
+- `tfstate-backend`'s aft-mgmt state is kept in the central bootstrap bucket as a simplification. Moving it to aft-mgmt's primary bucket (so the bootstrap bucket holds nothing but other accounts' bootstrap keys) is a housekeeping task - not on the critical path.
 - The drift-detection workflow (`gha-design.md` §5.5) should verify that per-account plans continue to run under `AtmosPlanOnlyRole` (assumed into each target) and that `AtmosReadAllStateRole` is only invoked by the summary-aggregation step. Concrete IAM for `AtmosPlanOnlyRole` vs `AtmosReadAllStateRole` is in `iam-deployment-roles/central`.
 
 ---
 
 ## 10. Validation, custom commands, templates
 
-**Validation** — Atmos supports JSON Schema (for stack shape) and OPA/Rego (for policy). `settings.validation.<name>` on a component in the catalog attaches a JSON Schema or Rego module to that component (`reference/atmos/examples/quick-start-advanced/stacks/catalog/vpc/defaults.yaml:12-36`). `atmos validate component <c> -s <s>` and `atmos validate stacks` run them. For the factory, this is where "every account must have a baseline X and tag Y" lives.
+**Validation** - Atmos supports JSON Schema (for stack shape) and OPA/Rego (for policy). `settings.validation.<name>` on a component in the catalog attaches a JSON Schema or Rego module to that component (`reference/atmos/examples/quick-start-advanced/stacks/catalog/vpc/defaults.yaml:12-36`). `atmos validate component <c> -s <s>` and `atmos validate stacks` run them. For the factory, this is where "every account must have a baseline X and tag Y" lives.
 
-**Custom commands** — `commands:` in `atmos.yaml` defines new `atmos <verb>` subcommands with steps that are shell templates. The quick-start config ships examples for `atmos tf plan`, `atmos terraform provision`, `atmos show component` (`reference/atmos/examples/quick-start-advanced/atmos.yaml:86-179`). `component_config:` in a custom command exposes `{{ .ComponentConfig.xxx }}` so steps can compute on resolved config. Useful for bespoke workflows like `atmos factory new-account` that wraps the request-to-stack flow.
+**Custom commands** - `commands:` in `atmos.yaml` defines new `atmos <verb>` subcommands with steps that are shell templates. The quick-start config ships examples for `atmos tf plan`, `atmos terraform provision`, `atmos show component` (`reference/atmos/examples/quick-start-advanced/atmos.yaml:86-179`). `component_config:` in a custom command exposes `{{ .ComponentConfig.xxx }}` so steps can compute on resolved config. Useful for bespoke workflows like `atmos factory new-account` that wraps the request-to-stack flow.
 
-**Templates** — Go templates (with Sprig and Gomplate) are evaluated inside stack YAML when `templates.settings.enabled: true`. Available variables include `.vars`, `.atmos_component`, `.atmos_stack`, `.atmos_stack_file`, `.workspace`, `.component`, `.ComponentConfig.xxx` (inside custom commands). YAML functions like `!terraform.output`, `!store`, `!env`, `!include`, `!aws.account-id`, `!aws.organization-id` give dynamic inputs (`reference/atmos/website/docs/functions/yaml/` directory).
+**Templates** - Go templates (with Sprig and Gomplate) are evaluated inside stack YAML when `templates.settings.enabled: true`. Available variables include `.vars`, `.atmos_component`, `.atmos_stack`, `.atmos_stack_file`, `.workspace`, `.component`, `.ComponentConfig.xxx` (inside custom commands). YAML functions like `!terraform.output`, `!store`, `!env`, `!include`, `!aws.account-id`, `!aws.organization-id` give dynamic inputs (`reference/atmos/website/docs/functions/yaml/` directory).
 
 ---
 
@@ -530,7 +530,7 @@ atmos-aft/
 │       ├── github-oidc-provider/      # + deployment roles per account
 │       ├── vpc/                       # vendored from terraform-aws-components
 │       ├── … baseline components …
-│       └── customizations/<name>/     # per-account customization modules (NOT YET IMPLEMENTED — see migration-from-aft.md §5)
+│       └── customizations/<name>/     # per-account customization modules (NOT YET IMPLEMENTED - see migration-from-aft.md §5)
 └── stacks/
     ├── catalog/                       # reusable component defaults
     │   ├── account-provisioning/defaults.yaml
@@ -573,15 +573,15 @@ Drift, remediation, and destroy flows are separate GHA workflows driven by the s
 
 ## 12. What Atmos does NOT provide (gaps for the factory to fill)
 
-Things we will need to build on top — these do not exist in the Atmos core:
+Things we will need to build on top - these do not exist in the Atmos core:
 
-1. **Account creation itself.** Atmos provisions Terraform; it does not call Organizations APIs, and in this project it must not try to — Control Tower owns the AWS Organization, OUs, the account-provisioning lifecycle, the org-level CloudTrail, baseline Config rules, and the Landing Zone. We therefore ship a custom `components/terraform/account-provisioning/` component whose only job is to wrap the `aws_servicecatalog_provisioned_product` resource against the Control Tower Account Factory product. It takes an account request (name, email, OU, SSO user) as Terraform variables and returns the new account ID as an output that downstream components consume via `!store`. The Cloudposse modules `aws-organization`, `aws-organizational-unit`, and `aws-account` are **forbidden** in this repo because they would fight Control Tower for ownership of the same resources; they must never appear in `vendor.yaml` or the components tree.
+1. **Account creation itself.** Atmos provisions Terraform; it does not call Organizations APIs, and in this project it must not try to - Control Tower owns the AWS Organization, OUs, the account-provisioning lifecycle, the org-level CloudTrail, baseline Config rules, and the Landing Zone. We therefore ship a custom `components/terraform/account-provisioning/` component whose only job is to wrap the `aws_servicecatalog_provisioned_product` resource against the Control Tower Account Factory product. It takes an account request (name, email, OU, SSO user) as Terraform variables and returns the new account ID as an output that downstream components consume via `!store`. The Cloudposse modules `aws-organization`, `aws-organizational-unit`, and `aws-account` are **forbidden** in this repo because they would fight Control Tower for ownership of the same resources; they must never appear in `vendor.yaml` or the components tree.
 2. **Account-request → stack-file generation.** Atmos consumes stack YAML; it does not produce it from a "request." We either (a) hand-write the new `<account>/<region>.yaml`, or (b) write a small generator (GHA script, issue-form template, or `atmos` custom command) that materializes the stack files from a request file.
 3. **Queueing and concurrency control across accounts.** AFT uses DynamoDB + SQS + Step Functions. Atmos has no equivalent; concurrency is whatever the driving GHA workflow imposes. The `describe affected` matrix + GHA `concurrency:` groups is the native replacement.
 4. **Drift scheduling.** AFT has scheduled drift detection. Atmos has a `ci` feature set and a community GitHub Action (`cloudposse/github-action-atmos-terraform-drift-detection`) that we can adopt.
 5. **Secrets rotation / long-running customizations state machines.** Anything AFT does via Step Functions has to be decomposed into GHA workflows calling Atmos commands.
 6. **`after-terraform-destroy` / `before-*` hooks.** Only `after-terraform-apply` exists today (`reference/atmos/website/docs/stacks/hooks.mdx:74-76`). Lifecycle scripting before destroy or before plan must be done in the calling workflow, not via `hooks:`.
-7. **Control-Tower-coexistent configuration of otherwise-standard components.** Several components we vendor from `terraform-aws-components` default to creating resources Control Tower already manages. Atmos will not stop this — it only merges the vars we give it — so the factory must set the coexistence flags explicitly in the catalog defaults:
+7. **Control-Tower-coexistent configuration of otherwise-standard components.** Several components we vendor from `terraform-aws-components` default to creating resources Control Tower already manages. Atmos will not stop this - it only merges the vars we give it - so the factory must set the coexistence flags explicitly in the catalog defaults:
    - `aws-config` must be configured with `create_recorder: false` and `create_iam_role: false` in every stack. The CT-provisioned recorder and role are reused; a second recorder would cause `AWS::Config::ConfigurationRecorder` duplication errors.
    - `aws-guardduty` requires a three-phase dependency chain across three separate component instances in three separate stacks, which a single `atmos terraform apply` cannot express. The factory workflow sequences them: `guardduty/delegated-admin` (in the management account) → `guardduty/root-delegation` (root → audit account delegation) → `guardduty/org-settings` (in the audit account, enables org-wide detector + auto-enable). The dependency is encoded via `settings.depends_on` and via ordered steps in an `atmos workflow`.
    - `aws-scp` is allowed only for SCPs *additional* to the CT guardrails. CT-managed SCPs must not be reimplemented.
@@ -594,24 +594,24 @@ These gaps become the explicit deliverables in the AFT-to-Atmos mapping (next do
 
 For the review, these are the load-bearing files in `reference/atmos/`:
 
-- `reference/atmos/examples/quick-start-advanced/atmos.yaml` — the canonical `atmos.yaml` with every relevant section.
-- `reference/atmos/examples/quick-start-advanced/stacks/` — full multi-tenant, multi-region, multi-stage example; mirrors what we will build.
-- `reference/atmos/examples/quick-start-advanced/vendor.yaml` — vendor manifest example.
-- `reference/atmos/website/docs/stacks/stacks.mdx` — section reference.
-- `reference/atmos/website/docs/stacks/imports.mdx` — imports, templates, remote sources.
-- `reference/atmos/website/docs/stacks/components/metadata.mdx` — component inheritance and workspace behavior.
-- `reference/atmos/website/docs/stacks/backend.mdx` — backend generation.
-- `reference/atmos/website/docs/stacks/auth.mdx` — auth providers/identities/chains.
-- `reference/atmos/website/docs/stacks/hooks.mdx` — lifecycle hooks and the `store` function.
-- `reference/atmos/website/docs/stacks/name.mdx` — stack naming precedence.
-- `reference/atmos/website/docs/components/components-overview.mdx` — implementation-vs-configuration model.
-- `reference/atmos/website/docs/ci/ci.mdx` — native CI integration.
-- `reference/atmos/website/docs/cli/commands/describe/describe-affected.mdx` — diff-aware deploys.
-- `reference/atmos/website/docs/cli/commands/list/list-instances.mdx` — matrix output for GHA.
-- `reference/atmos/website/docs/cli/commands/workflow.mdx` — workflow execution.
-- `reference/atmos/website/docs/cli/configuration/workflows.mdx` — workflow file structure.
-- `reference/atmos/website/docs/cli/configuration/vendor.mdx` — vendor config reference.
-- `reference/atmos/website/docs/integrations/github-actions/affected-stacks.mdx` — the GHA action pattern.
-- `reference/atmos/website/docs/design-patterns/stack-organization/organizational-hierarchy-configuration.mdx` — multi-tenant stack layout pattern.
-- `reference/atmos/website/docs/functions/yaml/terraform.output.mdx` — data sharing across stacks.
-- `reference/atmos/pkg/schema/schema.go` — Go structs that define the deep-merged configuration shape (authoritative when docs are ambiguous).
+- `reference/atmos/examples/quick-start-advanced/atmos.yaml` - the canonical `atmos.yaml` with every relevant section.
+- `reference/atmos/examples/quick-start-advanced/stacks/` - full multi-tenant, multi-region, multi-stage example; mirrors what we will build.
+- `reference/atmos/examples/quick-start-advanced/vendor.yaml` - vendor manifest example.
+- `reference/atmos/website/docs/stacks/stacks.mdx` - section reference.
+- `reference/atmos/website/docs/stacks/imports.mdx` - imports, templates, remote sources.
+- `reference/atmos/website/docs/stacks/components/metadata.mdx` - component inheritance and workspace behavior.
+- `reference/atmos/website/docs/stacks/backend.mdx` - backend generation.
+- `reference/atmos/website/docs/stacks/auth.mdx` - auth providers/identities/chains.
+- `reference/atmos/website/docs/stacks/hooks.mdx` - lifecycle hooks and the `store` function.
+- `reference/atmos/website/docs/stacks/name.mdx` - stack naming precedence.
+- `reference/atmos/website/docs/components/components-overview.mdx` - implementation-vs-configuration model.
+- `reference/atmos/website/docs/ci/ci.mdx` - native CI integration.
+- `reference/atmos/website/docs/cli/commands/describe/describe-affected.mdx` - diff-aware deploys.
+- `reference/atmos/website/docs/cli/commands/list/list-instances.mdx` - matrix output for GHA.
+- `reference/atmos/website/docs/cli/commands/workflow.mdx` - workflow execution.
+- `reference/atmos/website/docs/cli/configuration/workflows.mdx` - workflow file structure.
+- `reference/atmos/website/docs/cli/configuration/vendor.mdx` - vendor config reference.
+- `reference/atmos/website/docs/integrations/github-actions/affected-stacks.mdx` - the GHA action pattern.
+- `reference/atmos/website/docs/design-patterns/stack-organization/organizational-hierarchy-configuration.mdx` - multi-tenant stack layout pattern.
+- `reference/atmos/website/docs/functions/yaml/terraform.output.mdx` - data sharing across stacks.
+- `reference/atmos/pkg/schema/schema.go` - Go structs that define the deep-merged configuration shape (authoritative when docs are ambiguous).

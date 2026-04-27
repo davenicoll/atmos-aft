@@ -12,7 +12,7 @@
 
 mock_provider "aws" {
   # The wrapped module unconditionally evaluates a data.aws_caller_identity
-  # and a data.aws_iam_policy_document (via .json) — provide a stub policy
+  # and a data.aws_iam_policy_document (via .json) - provide a stub policy
   # JSON so any json-decoding inside transitive modules does not blow up.
   mock_data "aws_iam_policy_document" {
     defaults = {
@@ -40,7 +40,7 @@ run "empty_budgets_default_creates_no_budget_resources" {
     error_message = "Default var.budgets=[] must surface zero budgets in module.budgets.budgets[0]."
   }
 
-  # Echo on the wrapper output too — try() should yield [] when the inner
+  # Echo on the wrapper output too - try() should yield [] when the inner
   # module does not expose budget_names.
   assert {
     condition     = length(output.budget_names) == 0
@@ -119,7 +119,7 @@ run "multiple_budgets_create_multiple_resources" {
     error_message = "Two entries in var.budgets must surface exactly two budgets."
   }
 
-  # Either ordering is fine — assert both budget_types are represented.
+  # Either ordering is fine - assert both budget_types are represented.
   assert {
     condition = alltrue([
       contains([for k, b in module.budgets.budgets[0] : b.budget_type], "COST"),
@@ -183,7 +183,7 @@ run "wrapper_outputs_default_to_empty_list_via_try" {
 
   # The component-level outputs wrap module.budgets.budget_names/_ids in
   # try(...) defaulting to []. The inner module exposes `budgets` (resource
-  # list) but not `budget_names` — so the try() degrades cleanly. This is
+  # list) but not `budget_names` - so the try() degrades cleanly. This is
   # the contract: consumers see [] not an error.
   assert {
     condition     = length(output.budget_names) == 0

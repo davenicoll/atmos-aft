@@ -1,4 +1,4 @@
-# Top-level defaults — merged into every stack under stacks/orgs/.
+# Top-level defaults - merged into every stack under stacks/orgs/.
 # Lift this file's `settings.aft_mgmt_account_id` / `github_org` / `github_repo`
 # to environment-specific values in the per-org `_defaults.yaml`.
 terraform:
@@ -18,4 +18,4 @@ terraform:
       workspace_key_prefix: ""
 
 settings:
-  description: atmos-aft — org-wide defaults
+  description: atmos-aft - org-wide defaults

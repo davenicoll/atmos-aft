@@ -24,7 +24,7 @@ run "default_deletion_window_30_days" {
 
   assert {
     condition     = var.deletion_window_in_days == 30
-    error_message = "Default deletion_window_in_days must be 30 (AWS max) — lower values reduce recovery time on accidental delete."
+    error_message = "Default deletion_window_in_days must be 30 (AWS max) - lower values reduce recovery time on accidental delete."
   }
 }
 

@@ -2,7 +2,7 @@
 
 A replacement for [AWS Control Tower Account Factory for Terraform (AFT)](https://docs.aws.amazon.com/controltower/latest/userguide/aft-overview.html) built on [Cloudposse Atmos](https://atmos.tools/) and GitHub Actions.
 
-atmos-aft keeps the AFT feature surface — account vending, baseline, feature options, global and per-account customizations, drift detection — and swaps the runtime substrate. AWS CodeBuild + CodePipeline + Step Functions + DynamoDB + Lambda become GitHub Actions workflows, Atmos stack configuration, and Git.
+atmos-aft keeps the AFT feature surface - account vending, baseline, feature options, global and per-account customizations, drift detection - and swaps the runtime substrate. AWS CodeBuild + CodePipeline + Step Functions + DynamoDB + Lambda become GitHub Actions workflows, Atmos stack configuration, and Git.
 
 ---
 
@@ -60,8 +60,8 @@ Control Tower owns the Organization, OUs, baseline guardrail SCPs, the org-level
 
 Two distinct concepts share the phrase "AFT management account" in the wild. This repo disambiguates in prose:
 
-- **atmos-aft management account** — the dedicated AWS account in _this_ deployment that hosts the central IAM role (`AtmosCentralDeploymentRole`), the plan-only and read-all-state roles, the central bootstrap state bucket, the Control Tower event bridge, and (when `separate_aft_mgmt_account=true`) the Account Factory plumbing. Rendered as `aft-gbl-mgmt` in the stack catalog.
-- **(upstream) AFT management account** — the equivalent concept in AWS's `terraform-aws-control_tower_account_factory` reference implementation. Used only when comparing against upstream, describing migration, or quoting the baseline doc.
+- **atmos-aft management account** - the dedicated AWS account in _this_ deployment that hosts the central IAM role (`AtmosCentralDeploymentRole`), the plan-only and read-all-state roles, the central bootstrap state bucket, the Control Tower event bridge, and (when `separate_aft_mgmt_account=true`) the Account Factory plumbing. Rendered as `aft-gbl-mgmt` in the stack catalog.
+- **(upstream) AFT management account** - the equivalent concept in AWS's `terraform-aws-control_tower_account_factory` reference implementation. Used only when comparing against upstream, describing migration, or quoting the baseline doc.
 
 Technical identifiers (`aft-mgmt` as a stack/stage/account-class label, `aft_mgmt_account_id` as an input) are left verbatim in both cases; only the prose form is disambiguated.
 
@@ -104,7 +104,7 @@ PR merged to main (adds stacks/orgs/<org>/<tenant>/<account>/<region>.yaml)
 
 ### Security-service phased rollout
 
-GuardDuty, Security Hub, and Inspector2 are each delegated through three phases, and each phase lives in a different stack — this is why jobs 7b/7c/7d use `skip_if_already_applied=true` and run against the vended stack only:
+GuardDuty, Security Hub, and Inspector2 are each delegated through three phases, and each phase lives in a different stack - this is why jobs 7b/7c/7d use `skip_if_already_applied=true` and run against the vended stack only:
 
 | Phase | Stack | Component role | What it does |
 |-------|-------|----------------|--------------|
@@ -121,11 +121,11 @@ Phases 1 and 2 are one-time infrastructure (run during bootstrap, then rarely to
 Before running atmos-aft's bootstrap:
 
 1. **AWS Control Tower landing zone** deployed and `ACTIVE`. ct-management, log-archive, and audit accounts exist. OUs are created via CT.
-2. **atmos-aft management account** provisioned through CT Account Factory (name suggestion: `AFT-Management` in a dedicated OU). Single-account topology — where CT-mgmt doubles as the atmos-aft management account — is supported with the `separate_aft_mgmt_account=false` bootstrap input, but a dedicated account is recommended.
+2. **atmos-aft management account** provisioned through CT Account Factory (name suggestion: `AFT-Management` in a dedicated OU). Single-account topology - where CT-mgmt doubles as the atmos-aft management account - is supported with the `separate_aft_mgmt_account=false` bootstrap input, but a dedicated account is recommended.
 3. **GitHub organization and repository** hosting this codebase. Repository variables set:
-   - `ATMOS_CENTRAL_ROLE_ARN` — ARN of `AtmosCentralDeploymentRole` (written by bootstrap).
-   - `AFT_AUTH_MODE` — `oidc` (default) or `access_key` (dev-only).
-   - `ATMOS_EXTERNAL_ID` — static UUID used as `sts:ExternalId` when assuming CT-core roles.
+   - `ATMOS_CENTRAL_ROLE_ARN` - ARN of `AtmosCentralDeploymentRole` (written by bootstrap).
+   - `AFT_AUTH_MODE` - `oidc` (default) or `access_key` (dev-only).
+   - `ATMOS_EXTERNAL_ID` - static UUID used as `sts:ExternalId` when assuming CT-core roles.
 4. **GitHub OIDC provider** in the atmos-aft management account (`arn:aws:iam::<aft-mgmt>:oidc-provider/token.actions.githubusercontent.com`). Provisioned by the `bootstrap.yaml` workflow on first run.
 5. **A bootstrap identity** with programmatic AWS credentials sufficient to create the OIDC provider and the central deployment role on first run. This is used exactly once, then rotated out. See [`gha-design.md` §4.5](docs/architecture/gha-design.md#45-bootstrap-identity-for-newly-vended-accounts) for the exact permissions.
 6. **Service Catalog Account Factory portfolio** shared with the atmos-aft management account (handled by `iam-roles-management`'s `associate_aft_service_role_with_account_factory` step if missing).
@@ -133,7 +133,7 @@ Before running atmos-aft's bootstrap:
 
 ### Forking for a deployment
 
-Factory-runtime workflows — `pr.yaml`, `push-main.yaml`, `drift-detection.yaml`, `customize-fleet.yaml`, `vendor-refresh.yaml`, `notify.yaml`, `ct-lifecycle-event.yaml` — are gated on `github.repository != 'davenicoll/atmos-aft'` at their top-level jobs. In the source repo they skip (green check, no AWS calls); in any fork or deployment repo the condition is always true and they fire normally with no additional configuration. Reusable (`_*.yaml`) and dispatch-only workflows (`bootstrap`, `destroy-account`, `import-existing-account`, `custom-provisioning-hook`) are not gated — the reusables inherit their caller's gate, and the dispatch-only set cannot auto-fire. To suppress a specific workflow in a fork without deleting it, use GitHub's repo-level workflow-disable or add an explicit `DISABLE_<NAME>` repo variable and extend the `if:` expression.
+Factory-runtime workflows - `pr.yaml`, `push-main.yaml`, `drift-detection.yaml`, `customize-fleet.yaml`, `vendor-refresh.yaml`, `notify.yaml`, `ct-lifecycle-event.yaml` - are gated on `github.repository != 'davenicoll/atmos-aft'` at their top-level jobs. In the source repo they skip (green check, no AWS calls); in any fork or deployment repo the condition is always true and they fire normally with no additional configuration. Reusable (`_*.yaml`) and dispatch-only workflows (`bootstrap`, `destroy-account`, `import-existing-account`, `custom-provisioning-hook`) are not gated - the reusables inherit their caller's gate, and the dispatch-only set cannot auto-fire. To suppress a specific workflow in a fork without deleting it, use GitHub's repo-level workflow-disable or add an explicit `DISABLE_<NAME>` repo variable and extend the `if:` expression.
 
 ### Supported regions
 
@@ -143,9 +143,9 @@ atmos-aft must run in the CT home region. Multi-region workloads are supported i
 
 ## 4. Quickstart
 
-Eight numbered steps, in order. `atmos bootstrap` drives steps 3, 5, and 6 end-to-end — steps 5 and 6 are the same command re-run after the scaffold PR merges. See [`gha-design.md` §4](docs/architecture/gha-design.md#4-auth-paths) and [`atmos-model.md` §7](docs/architecture/atmos-model.md#7-workflows) for design detail.
+Eight numbered steps, in order. `atmos bootstrap` drives steps 3, 5, and 6 end-to-end - steps 5 and 6 are the same command re-run after the scaffold PR merges. See [`gha-design.md` §4](docs/architecture/gha-design.md#4-auth-paths) and [`atmos-model.md` §7](docs/architecture/atmos-model.md#7-workflows) for design detail.
 
-### Step 1 — Install Atmos (Required)
+### Step 1 - Install Atmos (Required)
 
 ```bash
 brew install cloudposse/tap/atmos      # or: go install github.com/cloudposse/atmos/cmd/atmos@latest
@@ -154,7 +154,7 @@ atmos version
 
 CI uses the same binary via the `setup-atmos` composite action; the version matches.
 
-### Step 2 — Clone the repo (Required)
+### Step 2 - Clone the repo (Required)
 
 ```bash
 git clone git@github.com:<your-org>/atmos-aft.git
@@ -163,7 +163,7 @@ cd atmos-aft
 
 Fork first if you intend to receive upstream updates; everything below assumes a working tree with an `origin` remote pointed at your fork.
 
-### Step 3 — Run `atmos bootstrap` (Required)
+### Step 3 - Run `atmos bootstrap` (Required)
 
 ```bash
 atmos bootstrap
@@ -184,11 +184,11 @@ The command gathers answers interactively, then writes a stack scaffold under `s
 
 Re-running against an existing scaffold prompts for continue / rescaffold / abort; non-interactive runs rescaffold in place. After this first run, the command exits with `PHASE B complete. Merge the PR, then re-run 'atmos bootstrap' to continue.`
 
-### Step 4 — Review and merge the scaffold PR (Required)
+### Step 4 - Review and merge the scaffold PR (Required)
 
 Open the PR the previous step produced, read the rendered stack YAML (it's the only surface CI will plan against), and merge. The merge enables `push-main.yaml` for the namespace; subsequent pushes start driving the workflow DAG.
 
-### Step 5 — Apply the central bootstrap components (Required)
+### Step 5 - Apply the central bootstrap components (Required)
 
 With the scaffold PR merged on `main`, pull locally and re-run the same command from the atmos-aft management account, holding `OrganizationAccountAccessRole` credentials in your shell:
 
@@ -197,17 +197,17 @@ git pull --ff-only
 atmos bootstrap
 ```
 
-Phase A re-loads the captured answers, detects the existing `_defaults.yaml`, skips Phase B, and proceeds to Phase C: three idempotent `atmos terraform apply` calls against the central stack (`aft-gbl-mgmt`, or `core-gbl-mgmt` under the single-account topology), in order — `github-oidc-provider`, `iam-deployment-roles/central`, and `tfstate-backend-central` with `init -reconfigure -migrate-state` for the local→S3 state transition. Each step short-circuits if the AWS resource already exists (OIDC provider ARN, IAM role, S3 bucket), so safe to re-run. After Phase C, `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`, the GitHub OIDC provider, and the central bootstrap state bucket are in place; GHA thereafter authenticates via OIDC with no static credentials.
+Phase A re-loads the captured answers, detects the existing `_defaults.yaml`, skips Phase B, and proceeds to Phase C: three idempotent `atmos terraform apply` calls against the central stack (`aft-gbl-mgmt`, or `core-gbl-mgmt` under the single-account topology), in order - `github-oidc-provider`, `iam-deployment-roles/central`, and `tfstate-backend-central` with `init -reconfigure -migrate-state` for the local→S3 state transition. Each step short-circuits if the AWS resource already exists (OIDC provider ARN, IAM role, S3 bucket), so safe to re-run. After Phase C, `AtmosCentralDeploymentRole`, `AtmosPlanOnlyRole`, `AtmosReadAllStateRole`, the GitHub OIDC provider, and the central bootstrap state bucket are in place; GHA thereafter authenticates via OIDC with no static credentials.
 
-### Step 6 — Run the fleet-bootstrap workflow (Required)
+### Step 6 - Run the fleet-bootstrap workflow (Required)
 
 The same `atmos bootstrap` invocation continues into Phase D, which dispatches `bootstrap.yaml` via `gh workflow run` with the captured namespace + topology flags and streams the run. If a successful `bootstrap.yaml` run landed in the last 24 hours, the phase offers to skip. `--phase D` runs this phase alone once you're comfortable with the pattern.
 
-The workflow stamps `AtmosDeploymentRole` and a per-account `tfstate-backend` into every CT-core account (ct-mgmt, aft-mgmt, audit, log-archive — three only when `separate_aft_mgmt_account=false`) via `_bootstrap-target.yaml`, falling back to `OrganizationAccountAccessRole` on first touch. It also primes security-service delegation for GuardDuty, Security Hub, and Inspector2 through phases 1 and 2 (see [Security-service phased rollout](#security-service-phased-rollout)); members enrol through phase 3 as `provision-account.yaml` vends them.
+The workflow stamps `AtmosDeploymentRole` and a per-account `tfstate-backend` into every CT-core account (ct-mgmt, aft-mgmt, audit, log-archive - three only when `separate_aft_mgmt_account=false`) via `_bootstrap-target.yaml`, falling back to `OrganizationAccountAccessRole` on first touch. It also primes security-service delegation for GuardDuty, Security Hub, and Inspector2 through phases 1 and 2 (see [Security-service phased rollout](#security-service-phased-rollout)); members enrol through phase 3 as `provision-account.yaml` vends them.
 
-### Step 7 — Request your first account (Required)
+### Step 7 - Request your first account (Required)
 
-Create `stacks/orgs/<your-org>/<tenant>/<stage>/<region>.yaml`. The stack name is rendered as `{tenant}-{region-short}-{stage}` (example: `plat-use1-dev`). Two worked examples ship: `stacks/orgs/example-accounts/` for the default dual-account topology (`separate_aft_mgmt_account=true`) and `stacks/orgs/example-accounts-single/` for the single-account topology (ct-mgmt absorbs the AFT-central catalogs). The single-account tree is excluded from default stack discovery to avoid `{tenant}-{environment}-{stage}` key collisions — see its README before enabling it. A working leaf stack from `example-accounts/`:
+Create `stacks/orgs/<your-org>/<tenant>/<stage>/<region>.yaml`. The stack name is rendered as `{tenant}-{region-short}-{stage}` (example: `plat-use1-dev`). Two worked examples ship: `stacks/orgs/example-accounts/` for the default dual-account topology (`separate_aft_mgmt_account=true`) and `stacks/orgs/example-accounts-single/` for the single-account topology (ct-mgmt absorbs the AFT-central catalogs). The single-account tree is excluded from default stack discovery to avoid `{tenant}-{environment}-{stage}` key collisions - see its README before enabling it. A working leaf stack from `example-accounts/`:
 
 ```yaml
 import:
@@ -241,11 +241,11 @@ vars:
   # account_customizations_name: standard-web
 ```
 
-The `catalog/account-classes/<class>` import picks the account's baseline identity — `vended` (CT-vended workloads), `aft-mgmt`, `ct-mgmt`, `audit`, or `log-archive`. Each class bundles defaults for `iam-deployment-roles`, the security services, and (for CT-core accounts) the CT-coexistence flags.
+The `catalog/account-classes/<class>` import picks the account's baseline identity - `vended` (CT-vended workloads), `aft-mgmt`, `ct-mgmt`, `audit`, or `log-archive`. Each class bundles defaults for `iam-deployment-roles`, the security services, and (for CT-core accounts) the CT-coexistence flags.
 
 Open a PR. CI runs `pr.yaml` and plans every affected instance read-only. Merge, and `push-main.yaml` dispatches `provision-account.yaml`. End-to-end typically 15–30 minutes, dominated by CT Account Factory.
 
-### Step 8 — Watch progress (Optional)
+### Step 8 - Watch progress (Optional)
 
 ```bash
 gh run watch                                                        # most recent run
@@ -258,35 +258,35 @@ aws ssm get-parameter --name /aft/account/my-first-account/status   # provisioni
 
 Inputs in atmos-aft split across three surfaces:
 
-- **Factory-level** — repository variables and secrets. Set once per deployment.
-- **Stack vars** — per-account configuration in `stacks/orgs/.../<account>/<region>.yaml`.
-- **Workflow inputs** — `workflow_dispatch` arguments for entry-point workflows (e.g. `provision-account.yaml`).
+- **Factory-level** - repository variables and secrets. Set once per deployment.
+- **Stack vars** - per-account configuration in `stacks/orgs/.../<account>/<region>.yaml`.
+- **Workflow inputs** - `workflow_dispatch` arguments for entry-point workflows (e.g. `provision-account.yaml`).
 
 ### 5.1 Factory-level (repo variables and secrets)
 
 
 | Name | Location | Type | Default | Notes |
 |------|----------|------|---------|-------|
-| `ATMOS_CENTRAL_ROLE_ARN` | repo var | string | — | Written by bootstrap; consumed by every deploy workflow. |
-| `ATMOS_EXTERNAL_ID` | repo secret | string (UUID) | — | Matched by `sts:ExternalId` on CT-core role trust. |
+| `ATMOS_CENTRAL_ROLE_ARN` | repo var | string | - | Written by bootstrap; consumed by every deploy workflow. |
+| `ATMOS_EXTERNAL_ID` | repo secret | string (UUID) | - | Matched by `sts:ExternalId` on CT-core role trust. |
 | `AFT_AUTH_MODE` | repo var | `oidc`\|`access_key` | `oidc` | `access_key` is dev-only and gated by branch protection. |
-| `AFT_BOOTSTRAP_ACCESS_KEY_ID` | repo secret | string | — | Used only by `bootstrap.yaml` on first run. |
-| `AFT_BOOTSTRAP_SECRET_ACCESS_KEY` | repo secret | string | — | Paired with the above. Rotate out after bootstrap. |
-| `TERRAFORM_CLOUD_TOKEN` | repo secret | string | — | Required when `terraform_distribution=tfc|tfe`. Also sensitive in state. |
-| `terraform_org_name` | `bootstrap.yaml` input | string | — | Required when `terraform_distribution=tfc|tfe`. HCP Terraform organisation name; maps to upstream AFT's `terraform_org_name`. |
+| `AFT_BOOTSTRAP_ACCESS_KEY_ID` | repo secret | string | - | Used only by `bootstrap.yaml` on first run. |
+| `AFT_BOOTSTRAP_SECRET_ACCESS_KEY` | repo secret | string | - | Paired with the above. Rotate out after bootstrap. |
+| `TERRAFORM_CLOUD_TOKEN` | repo secret | string | - | Required when `terraform_distribution=tfc|tfe`. Also sensitive in state. |
+| `terraform_org_name` | `bootstrap.yaml` input | string | - | Required when `terraform_distribution=tfc|tfe`. HCP Terraform organisation name; maps to upstream AFT's `terraform_org_name`. |
 | `terraform_project_name` | `bootstrap.yaml` input | string | `Default Project` | Required when `terraform_distribution=tfc|tfe`. HCP Terraform project containing atmos-aft workspaces; used in the OIDC `sub` claim condition on `AtmosCentralDeploymentRole`. Must exist pre-deploy. Maps to upstream AFT's `terraform_project_name`. |
 | `AFT_PROVISION_PARALLELISM` | repo var | number | `1` | Global single-lane default; widen after empirical validation. |
 | `AFT_CUSTOMIZE_PARALLELISM` | repo var | number | `4` | Per-scope matrix `max-parallel`. |
 
 ### 5.2 Stack vars (per account)
 
-The common vars — these mirror AFT's `control_tower_parameters` plus atmos-aft additions. The authoritative schema lives in the `account-provisioning` component (`components/terraform/account-provisioning/variables.tf`); `stacks/catalog/account-provisioning/defaults.yaml` wires in the SSM-publish hook.
+The common vars - these mirror AFT's `control_tower_parameters` plus atmos-aft additions. The authoritative schema lives in the `account-provisioning` component (`components/terraform/account-provisioning/variables.tf`); `stacks/catalog/account-provisioning/defaults.yaml` wires in the SSM-publish hook.
 
 | Name | Type | Required | Default | Notes |
 |------|------|:--------:|---------|-------|
-| `account_name` | string | yes | — | CT-visible account name. Must be unique in the org. |
-| `account_email` | string | yes | — | Root-account email. Must be unique globally. |
-| `managed_organizational_unit` | string | yes | — | Target CT OU. |
+| `account_name` | string | yes | - | CT-visible account name. Must be unique in the org. |
+| `account_email` | string | yes | - | Root-account email. Must be unique globally. |
+| `managed_organizational_unit` | string | yes | - | Target CT OU. |
 | `sso_user_email` | string | no | `account_email` | CT SSO user created on account enrolment. |
 | `sso_user_first_name` | string | no | derived | |
 | `sso_user_last_name` | string | no | derived | |
@@ -315,7 +315,7 @@ Per entry-point workflow. Full list in [`gha-design.md` §3](docs/architecture/g
 | `customize-fleet.yaml` | `scope` (`all`\|`changed`\|`stack:<name>`\|`component:<c>`), `dry_run` | Run customizations across the fleet on demand. |
 | `destroy-account.yaml` | `stack`, `confirm_account_id` | Deliberate account teardown. Environment-gated. |
 | `import-existing-account.yaml` | `stack`, `servicecatalog_provisioned_product_id` | Bring an existing CT account under atmos-aft management. |
-| `drift-detection.yaml` | — | Manual trigger of the daily drift scan. |
+| `drift-detection.yaml` | - | Manual trigger of the daily drift scan. |
 
 ### 5.4 Inputs dropped from upstream AFT
 
@@ -323,12 +323,12 @@ Intentional cuts; these have no analogue in atmos-aft:
 
 | Upstream AFT input | Replacement |
 |--------------------|-------------|
-| `aft_enable_vpc`, `aft_vpc_endpoints`, `aft_vpc_cidr`, `aft_vpc_*_subnet_*_cidr`, `aft_customer_vpc_id`, `aft_customer_private_subnets` | No AFT VPC — GHA runners replace the in-VPC CodeBuild. Self-hosted runners remain an option for air-gapped environments. |
+| `aft_enable_vpc`, `aft_vpc_endpoints`, `aft_vpc_cidr`, `aft_vpc_*_subnet_*_cidr`, `aft_customer_vpc_id`, `aft_customer_private_subnets` | No AFT VPC - GHA runners replace the in-VPC CodeBuild. Self-hosted runners remain an option for air-gapped environments. |
 | `aft_codebuild_compute_type`, `global_codebuild_timeout` | GHA runner tier is controlled in `.github/workflows/*.yml`. |
 | `concurrent_account_factory_actions` | `AFT_PROVISION_PARALLELISM` repo variable; per-concurrency-group. |
 | `terraform_oidc_*` | Replaced by GitHub OIDC (first-class; `terraform_oidc_integration` becomes trivially `true` when using TFC). |
-| `backup_recovery_point_retention` | Not applicable — no AFT-owned DynamoDB tables; Git + SSM are the request + metadata plane. |
-| `tf_backend_secondary_region` | Not applicable — atmos-aft is single-region; see [`atmos-model.md` §9.3.4](docs/architecture/atmos-model.md#934-dr--dual-region--deferred). State replication is a per-account bucket opt-in, not a global toggle. |
+| `backup_recovery_point_retention` | Not applicable - no AFT-owned DynamoDB tables; Git + SSM are the request + metadata plane. |
+| `tf_backend_secondary_region` | Not applicable - atmos-aft is single-region; see [`atmos-model.md` §9.3.4](docs/architecture/atmos-model.md#934-dr--dual-region--deferred). State replication is a per-account bucket opt-in, not a global toggle. |
 | `cloudwatch_log_group_enable_cmk_encryption`, `sns_topic_enable_cmk_encryption` | Uniformly CMK-encrypted. No AWS-managed-key fallback. |
 
 Per-input parity was audited in [`docs/architecture/archive/readme-audit.md`](docs/architecture/archive/readme-audit.md) at Phase 2 sign-off (archived).
@@ -363,9 +363,9 @@ Written by the `publish-status` and `publish-account-id` composite actions; cons
 
 ### 6.3 Workflow artifacts
 
-- **Plan summaries** — `post-plan-summary` composite posts per-instance diffs to the PR and to `$GITHUB_STEP_SUMMARY`.
-- **Planfiles** — stored via the Atmos planfile store (S3-backed; keys under `planfiles/<run-id>/<stack>/<component>.tfplan`).
-- **Drift reports** — `drift-detection.yaml` opens a GitHub issue per drifting instance, labelled `drift`.
+- **Plan summaries** - `post-plan-summary` composite posts per-instance diffs to the PR and to `$GITHUB_STEP_SUMMARY`.
+- **Planfiles** - stored via the Atmos planfile store (S3-backed; keys under `planfiles/<run-id>/<stack>/<component>.tfplan`).
+- **Drift reports** - `drift-detection.yaml` opens a GitHub issue per drifting instance, labelled `drift`.
 
 ### 6.4 Outputs dropped vs upstream
 
@@ -385,15 +385,15 @@ atmos-aft/
 ├── vendor.yaml               # Upstream component sources (go-getter)
 ├── Makefile
 ├── components/terraform/
-│   ├── account-provisioning/            # Custom — CT Account Factory wrapper
-│   ├── iam-deployment-roles/{central,target}/   # Custom — central + per-account role set
-│   ├── controltower-event-bridge/       # Custom — CT event → GH repository_dispatch
-│   ├── cloudtrail-lake/                 # Custom — audit event store
-│   ├── cloudtrail-additional/           # Custom — per-account supplementary trails
+│   ├── account-provisioning/            # Custom - CT Account Factory wrapper
+│   ├── iam-deployment-roles/{central,target}/   # Custom - central + per-account role set
+│   ├── controltower-event-bridge/       # Custom - CT event → GH repository_dispatch
+│   ├── cloudtrail-lake/                 # Custom - audit event store
+│   ├── cloudtrail-additional/           # Custom - per-account supplementary trails
 │   ├── tfstate-backend/ + tfstate-backend-central/   # Per-account + bootstrap backends
 │   ├── aft-access-logs-bucket/ aft-lifecycle-lambdas/ aft-observability/ aft-ssm-parameters/
 │   ├── account-request-{kms,queue,notifications}/   # Request-plane infra
-│   ├── aws-account-settings/            # Custom — password policy + EBS encryption defaults
+│   ├── aws-account-settings/            # Custom - password policy + EBS encryption defaults
 │   ├── aws-budgets/ aws-scp/            # Cloudposse wrappers
 │   ├── aws-config-rules/ aws-config-conformance-pack/   # CT-compat Config extensions
 │   ├── guardduty-root/ guardduty-delegated-admin/ guardduty-member-settings/
@@ -432,13 +432,13 @@ The full component list is longer than what fits here; see [`docs/architecture/m
 
 ### 7.2 Stack naming
 
-Stack name is rendered from `{tenant}-{environment}-{stage}` (example: `plat-use1-dev`). `environment` follows the Cloudposse null-label convention — the field name is `environment`, its value is a region short-code (`use1` for `us-east-1`, `usw2` for `us-west-2`, `gbl` for account-global).
+Stack name is rendered from `{tenant}-{environment}-{stage}` (example: `plat-use1-dev`). `environment` follows the Cloudposse null-label convention - the field name is `environment`, its value is a region short-code (`use1` for `us-east-1`, `usw2` for `us-west-2`, `gbl` for account-global).
 
 Required inheritance chain:
 
 ```
-stacks/orgs/_defaults.yaml                    (top-level — backend config)
-└─ stacks/orgs/<org>/_defaults.yaml           (org — namespace, tags, settings)
+stacks/orgs/_defaults.yaml                    (top-level - backend config)
+└─ stacks/orgs/<org>/_defaults.yaml           (org - namespace, tags, settings)
    └─ stacks/orgs/<org>/<tenant>/<stage>/<region>.yaml (leaf, one file per region)
 ```
 
@@ -509,7 +509,7 @@ Typical contents: ServiceNow ticket creation, approval gate, compliance tagging,
 
 ### 9.3 Post-provision hook
 
-`_post-provision-hook.yaml` is the outbound signal — runs after `publish-status` and can trigger downstream systems (Slack, Jira, DataDog). Left as a no-op stub; operators wire up as needed.
+`_post-provision-hook.yaml` is the outbound signal - runs after `publish-status` and can trigger downstream systems (Slack, Jira, DataDog). Left as a no-op stub; operators wire up as needed.
 
 ### 9.4 Lifecycle events from Control Tower
 
@@ -525,13 +525,13 @@ For teams currently running upstream AFT. The migration is incremental; both sys
 
 Summary of the migration path:
 
-1. **Audit** — inventory AFT-managed accounts, customizations, SSM parameters, inputs, and in-flight state.
-2. **Side-by-side bootstrap** — stand up atmos-aft in the same account that hosts upstream AFT (the atmos-aft management account becomes that account). Different IAM role names, separate state backends, no DDB tables. AFT keeps operating.
-3. **Account-by-account import** — for each account: author stack YAML, run [`import-existing-account.yaml`](.github/workflows/import-existing-account.yaml) (`gh workflow run import-existing-account.yaml --field stack=<s> --field servicecatalog_provisioned_product_id=<id>`), verify zero-diff plan, decommission from AFT.
-4. **Customization migration** — customer-owned Terraform ports directly. Backend Jinja files are deleted (atmos-aft renders natively). The `aft-account-provisioning-customizations` SFN is rewritten as GHA jobs.
-5. **Decommission AFT** — once the last account is migrated, destroy AFT's Terraform root module, remove the `AWSAFT*` roles, archive the AFT state bucket.
+1. **Audit** - inventory AFT-managed accounts, customizations, SSM parameters, inputs, and in-flight state.
+2. **Side-by-side bootstrap** - stand up atmos-aft in the same account that hosts upstream AFT (the atmos-aft management account becomes that account). Different IAM role names, separate state backends, no DDB tables. AFT keeps operating.
+3. **Account-by-account import** - for each account: author stack YAML, run [`import-existing-account.yaml`](.github/workflows/import-existing-account.yaml) (`gh workflow run import-existing-account.yaml --field stack=<s> --field servicecatalog_provisioned_product_id=<id>`), verify zero-diff plan, decommission from AFT.
+4. **Customization migration** - customer-owned Terraform ports directly. Backend Jinja files are deleted (atmos-aft renders natively). The `aft-account-provisioning-customizations` SFN is rewritten as GHA jobs.
+5. **Decommission AFT** - once the last account is migrated, destroy AFT's Terraform root module, remove the `AWSAFT*` roles, archive the AFT state bucket.
 
-Rollback is documented in [`migration-from-aft.md` §8](docs/architecture/migration-from-aft.md#8-rollback) — atmos-aft is non-destructive up to the AFT-decommission step.
+Rollback is documented in [`migration-from-aft.md` §8](docs/architecture/migration-from-aft.md#8-rollback) - atmos-aft is non-destructive up to the AFT-decommission step.
 
 ---
 
@@ -567,7 +567,7 @@ Also scheduled every Monday 06:00 UTC.
 
 ### 11.5 Drift detection
 
-`drift-detection.yaml` runs daily at 02:00 UTC. The `list` job enumerates `(component, stack)` pairs via `AtmosReadAllStateRole` (decrypt-only, cross-account read access to every state bucket). Each pair then fans out into a matrix of `atmos terraform plan` jobs that assume `AtmosPlanOnlyRole` in the central account and chain into `AtmosDeploymentRoleReadOnly` in the target — read-only end-to-end, no write surface on either hop. Drift is surfaced in the workflow step summary (per-pair plan results aggregated by the matrix).
+`drift-detection.yaml` runs daily at 02:00 UTC. The `list` job enumerates `(component, stack)` pairs via `AtmosReadAllStateRole` (decrypt-only, cross-account read access to every state bucket). Each pair then fans out into a matrix of `atmos terraform plan` jobs that assume `AtmosPlanOnlyRole` in the central account and chain into `AtmosDeploymentRoleReadOnly` in the target - read-only end-to-end, no write surface on either hop. Drift is surfaced in the workflow step summary (per-pair plan results aggregated by the matrix).
 
 To run on demand:
 
@@ -623,13 +623,13 @@ GitHub OIDC principal
                  → AtmosDeploymentRoleReadOnly (in target account)   [ReadOnlyAccess]
 ```
 
-- **`AtmosCentralDeploymentRole`** has no direct AWS permissions — only `sts:AssumeRole` on `AtmosDeploymentRole` across the org. Defence-in-depth against a leaked OIDC exchange.
+- **`AtmosCentralDeploymentRole`** has no direct AWS permissions - only `sts:AssumeRole` on `AtmosDeploymentRole` across the org. Defence-in-depth against a leaked OIDC exchange.
 - **`AtmosDeploymentRole`** has `AdministratorAccess` in its own account. Its trust policy permits only `AtmosCentralDeploymentRole` plus (for CT-core accounts) a matching `sts:ExternalId`.
-- **`AtmosPlanOnlyRole`** — central-hub role used by `pr.yaml` and `drift-detection.yaml`. Carries only `sts:AssumeRole` on `AtmosDeploymentRoleReadOnly` across the org; cannot assume any write role. The chain is wired through `_atmos-plan.yaml`'s `central_role_arn` and `target_role_name` inputs: `resolve-stack` composes `target_role_arn = arn:aws:iam::<account_id>:role/<target_role_name>`, `configure-aws` exports it as `TF_VAR_target_role_arn`, and every component's `provider "aws" { dynamic "assume_role" { ... } }` block assumes the read-only target role.
-- **`AtmosDeploymentRoleReadOnly`** — stamped in every target account by the same bootstrap flow as `AtmosDeploymentRole`. Attached `ReadOnlyAccess` + `organizations:Describe*`. Trust policy permits only `AtmosPlanOnlyRole`.
-- **`AtmosReadAllStateRole`** — decrypt-only cross-account role used by `drift-detection.yaml`'s `list` job (state enumeration). Scoped by `kms:ViaService` to `s3.*.amazonaws.com`.
+- **`AtmosPlanOnlyRole`** - central-hub role used by `pr.yaml` and `drift-detection.yaml`. Carries only `sts:AssumeRole` on `AtmosDeploymentRoleReadOnly` across the org; cannot assume any write role. The chain is wired through `_atmos-plan.yaml`'s `central_role_arn` and `target_role_name` inputs: `resolve-stack` composes `target_role_arn = arn:aws:iam::<account_id>:role/<target_role_name>`, `configure-aws` exports it as `TF_VAR_target_role_arn`, and every component's `provider "aws" { dynamic "assume_role" { ... } }` block assumes the read-only target role.
+- **`AtmosDeploymentRoleReadOnly`** - stamped in every target account by the same bootstrap flow as `AtmosDeploymentRole`. Attached `ReadOnlyAccess` + `organizations:Describe*`. Trust policy permits only `AtmosPlanOnlyRole`.
+- **`AtmosReadAllStateRole`** - decrypt-only cross-account role used by `drift-detection.yaml`'s `list` job (state enumeration). Scoped by `kms:ViaService` to `s3.*.amazonaws.com`.
 
-All PR runs use the standard `pull_request` trigger. Same-repo PRs obtain OIDC credentials for `AtmosPlanOnlyRole` and produce a live plan. PRs from external forks receive no AWS credentials (GitHub withholds secrets by default on fork PRs) and produce only a static `atmos describe affected` summary. A maintainer can close-reopen the PR from a trusted branch to trigger a live plan. atmos-aft never uses `pull_request_target`, which would run workflow code against the base-branch context with secrets — the known privilege-escalation vector for fork PRs.
+All PR runs use the standard `pull_request` trigger. Same-repo PRs obtain OIDC credentials for `AtmosPlanOnlyRole` and produce a live plan. PRs from external forks receive no AWS credentials (GitHub withholds secrets by default on fork PRs) and produce only a static `atmos describe affected` summary. A maintainer can close-reopen the PR from a trusted branch to trigger a live plan. atmos-aft never uses `pull_request_target`, which would run workflow code against the base-branch context with secrets - the known privilege-escalation vector for fork PRs.
 
 ### 12.2 State encryption
 
@@ -659,7 +659,7 @@ If `terraform_distribution=tfc|tfe`, atmos-aft configures `AtmosCentralDeploymen
 
 ### 12.5 Secrets
 
-- `terraform_token` (TFC API) — stored as `TERRAFORM_CLOUD_TOKEN` GitHub secret **and** as SSM `SecureString` for runtime consumers. Both surfaces are encrypted at rest with the AFT CMK.
+- `terraform_token` (TFC API) - stored as `TERRAFORM_CLOUD_TOKEN` GitHub secret **and** as SSM `SecureString` for runtime consumers. Both surfaces are encrypted at rest with the AFT CMK.
 - No long-lived AWS keys in CI. Bootstrap user keys are used exactly once during `bootstrap.yaml` and should be rotated out.
 
 ---
@@ -668,7 +668,7 @@ If `terraform_distribution=tfc|tfe`, atmos-aft configures `AtmosCentralDeploymen
 
 **See [`docs/architecture/troubleshooting.md`](docs/architecture/troubleshooting.md) for the full troubleshooting guide.** It catalogues failure modes by layer (CT preconditions, IAM/OIDC, Service Catalog provisioning, GHA orchestration, Terraform/Atmos, state/locking, customizations), with diagnostic commands, ordered remediations, escalation playbooks, and an error-text → section index.
 
-### 13.1 Quick reference — most common failures
+### 13.1 Quick reference - most common failures
 
 | Symptom | See |
 |---------|-----|
@@ -729,7 +729,7 @@ See `LICENSE` (top of this repo) and the upstream `reference/aft/LICENSE` for fu
 
 ## References
 
-- [AWS Control Tower Account Factory for Terraform — Overview](https://docs.aws.amazon.com/controltower/latest/userguide/aft-overview.html)
+- [AWS Control Tower Account Factory for Terraform - Overview](https://docs.aws.amazon.com/controltower/latest/userguide/aft-overview.html)
 - [Cloudposse Atmos documentation](https://atmos.tools/)
 - [Cloudposse `terraform-aws-components`](https://github.com/cloudposse/terraform-aws-components)
-- [`docs/architecture/`](docs/architecture/) — full design specs (source of truth for every claim in this README)
+- [`docs/architecture/`](docs/architecture/) - full design specs (source of truth for every claim in this README)

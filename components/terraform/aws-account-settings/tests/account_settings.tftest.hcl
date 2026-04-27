@@ -64,7 +64,7 @@ run "password_policy_defaults_propagate" {
 
   assert {
     condition     = aws_iam_account_password_policy.this[0].hard_expiry == false
-    error_message = "hard_expiry must be false — true would lock users out at age expiry."
+    error_message = "hard_expiry must be false - true would lock users out at age expiry."
   }
 }
 

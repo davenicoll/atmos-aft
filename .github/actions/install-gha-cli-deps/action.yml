@@ -1,7 +1,7 @@
 name: install-gha-cli-deps
 description: >-
-  Install ancillary CLIs used across workflows — jq, yq, conftest, opa, and
-  optional gh extensions — at pinned versions. `aws`, `atmos`, `terraform`,
+  Install ancillary CLIs used across workflows - jq, yq, conftest, opa, and
+  optional gh extensions - at pinned versions. `aws`, `atmos`, `terraform`,
   and `gh` are already present on GitHub-hosted ubuntu runners or installed
   by `setup-atmos`.
 

@@ -47,6 +47,6 @@ For both `atmos_version` and `terraform_version`:
 
 ## Environment variables set
 
-- `ATMOS_BASE_PATH` — repo root.
+- `ATMOS_BASE_PATH` - repo root.
 - `ATMOS_LOGS_LEVEL=Info`.
-- `ATMOS_CLI_CONFIG_PATH` — repo root.
+- `ATMOS_CLI_CONFIG_PATH` - repo root.

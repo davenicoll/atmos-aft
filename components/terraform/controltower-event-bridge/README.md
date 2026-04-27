@@ -10,10 +10,10 @@ Source of truth: `docs/architecture/gha-design.md` §5.12 (workflow side), §10.
 
 1. **EventBridge rule** on the `default` bus matching `aws.controltower` service events with the three lifecycle event names.
 2. **API destination + connection** pointing at `https://api.github.com/repos/<org>/<repo>/dispatches`, with `API_KEY` auth.
-3. **Secrets Manager** — shape varies by `github_auth_mode`:
+3. **Secrets Manager** - shape varies by `github_auth_mode`:
    - `app` (default): GitHub App PEM secret (long-lived) + installation-token secret (short-lived, auto-rotated), each under a distinct CMK.
    - `pat`: one fine-grained PAT secret (manual rotation every 90 days).
-4. **Rotator Lambda** (app mode only): runs every 30 min, mints installation tokens from the PEM, writes to the token secret. IAM scoped per `gha-design.md` §10.1 — no wildcards, Decrypt only on PEM CMK, Encrypt only on token CMK (can write tokens, can't read its own output).
+4. **Rotator Lambda** (app mode only): runs every 30 min, mints installation tokens from the PEM, writes to the token secret. IAM scoped per `gha-design.md` §10.1 - no wildcards, Decrypt only on PEM CMK, Encrypt only on token CMK (can write tokens, can't read its own output).
 5. **SQS DLQ** (14-day retention) for API-destination delivery failures, with a bucket-not-empty alarm wired to SNS.
 6. **CloudWatch alarms** on rotator errors + rotator staleness (reproducing SMR's out-of-the-box alerting without joining the SMR protocol).
 
@@ -54,11 +54,11 @@ Consumed by `.github/workflows/ct-lifecycle-event.yaml`. The workflow's concurre
 
 ## Stack placement
 
-One instance in `stacks/orgs/<org>/core/ct-mgmt/<region>.yaml`. Single region per org — CT is single-region for its event plane.
+One instance in `stacks/orgs/<org>/core/ct-mgmt/<region>.yaml`. Single region per org - CT is single-region for its event plane.
 
 ## Why the rotator is bespoke, not SMR
 
-SMR's four-step `RotateSecret` protocol is designed for DB-credential atomic swaps (create new, test, promote, revoke old). Our case — "mint a short-lived token from a long-lived PEM" — has no atomic-swap concern; the old token expires on its own. Two CloudWatch alarms reproduce SMR's out-of-the-box alerting (error-count > 0; downstream token staleness > 35 min) without the protocol overhead.
+SMR's four-step `RotateSecret` protocol is designed for DB-credential atomic swaps (create new, test, promote, revoke old). Our case - "mint a short-lived token from a long-lived PEM" - has no atomic-swap concern; the old token expires on its own. Two CloudWatch alarms reproduce SMR's out-of-the-box alerting (error-count > 0; downstream token staleness > 35 min) without the protocol overhead.
 
 ## Why two CMKs in app mode
 

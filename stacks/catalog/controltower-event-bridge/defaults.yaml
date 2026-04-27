@@ -1,5 +1,5 @@
 # Routes CT EventBridge lifecycle events to GHA repository_dispatch.
-# Defaults to `github_auth_mode: app` — requires GitHub App install with
+# Defaults to `github_auth_mode: app` - requires GitHub App install with
 # minimum contents:write permission, credentials in Secrets Manager via the
 # companion aft-observability component. See gha-design.md §4.8.
 components:

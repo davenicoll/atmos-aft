@@ -113,7 +113,7 @@ run "default_lifecycle_rules_empty" {
   # apply unintended lifecycle behaviour.
   assert {
     condition     = length(var.lifecycle_rules) == 0
-    error_message = "Default lifecycle_rules must be empty — concrete rules come from stack YAML."
+    error_message = "Default lifecycle_rules must be empty - concrete rules come from stack YAML."
   }
 }
 

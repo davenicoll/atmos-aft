@@ -7,7 +7,7 @@ metadata:
     pinned to a release tag. Rows below map 1:1 to docs/architecture/module-inventory.md
     §2 + §2.5. Run `atmos vendor pull` after edits; do NOT edit vendored files in place.
 
-    Custom components (no Cloudposse backing) are NOT listed here — they live in
+    Custom components (no Cloudposse backing) are NOT listed here - they live in
     components/terraform/<name>/ directly. See module-inventory.md §0.1 + §2.5 notes.
 spec:
   sources:
@@ -164,7 +164,7 @@ spec:
       tags: ["security"]
 
     # ---- Rows 38-39: Config submodules (CIS rules + conformance pack) ----
-    # NEVER use the top-level terraform-aws-config module — it always creates a recorder
+    # NEVER use the top-level terraform-aws-config module - it always creates a recorder
     # which collides with CT-provisioned recorder. Pull only the submodules.
     - component: "config"
       source: "github.com/cloudposse/terraform-aws-config.git//?ref=1.6.1"

@@ -1,4 +1,4 @@
-# Phase 3 — runs in each member account. Wraps cloudposse/guardduty/aws to
+# Phase 3 - runs in each member account. Wraps cloudposse/guardduty/aws to
 # create the per-account detector and feature toggles. Crucially, must NOT
 # declare aws_guardduty_organization_configuration (phase-2 ownership).
 
@@ -31,8 +31,8 @@ run "feature_toggles_default_on" {
   command = plan
 
   # The cloudposse module re-exports only `guardduty_detector`, `sns_topic`,
-  # `sns_topic_subscriptions` — internal aws_guardduty_detector_feature
-  # resources are not addressable. Assert on var.X — these flags drive the
+  # `sns_topic_subscriptions` - internal aws_guardduty_detector_feature
+  # resources are not addressable. Assert on var.X - these flags drive the
   # count gates of the module-internal resources.
   assert {
     condition = alltrue([

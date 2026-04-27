@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Minimal go-template subset renderer. Reads template on stdin, answer
 # key=value lines via ANSWERS env (newline-separated), emits rendered text.
-# Supports {{ .key }} substitution only — branching is pre-resolved by the
+# Supports {{ .key }} substitution only - branching is pre-resolved by the
 # caller (see run.sh). gomplate is used when present for fidelity; otherwise
 # we fall back to this renderer.
 set -euo pipefail

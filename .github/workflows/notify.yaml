@@ -81,7 +81,7 @@ jobs:
             exit 0
           fi
           payload=$(jq -n \
-            --arg text "atmos-aft: *$WORKFLOW* — \`$CONCLUSION\` — <$RUN_URL|run>" \
+            --arg text "atmos-aft: *$WORKFLOW* - \`$CONCLUSION\` - <$RUN_URL|run>" \
             '{text: $text}')
           curl -sS -X POST -H 'Content-Type: application/json' \
             --data "$payload" \

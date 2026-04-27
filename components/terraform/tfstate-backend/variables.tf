@@ -5,7 +5,7 @@ variable "region" {
 
 variable "aft_mgmt_account_id" {
   type        = string
-  description = "aft-mgmt account ID — hosts AtmosReadAllStateRole + AtmosCentralDeploymentRole. Grants read-only cross-account access to state."
+  description = "aft-mgmt account ID - hosts AtmosReadAllStateRole + AtmosCentralDeploymentRole. Grants read-only cross-account access to state."
 
   validation {
     condition     = can(regex("^[0-9]{12}$", var.aft_mgmt_account_id))

@@ -5,7 +5,7 @@
 # $GITHUB_OUTPUT.
 #
 # INVARIANT: `new_stacks`, `destroyed_stacks`, and `modified_stacks` are
-# intended to be DISJOINT — a given stack must land in at most one bucket
+# intended to be DISJOINT - a given stack must land in at most one bucket
 # per run. The downstream routing logic assumes this (e.g. it will not try
 # to both create and destroy the same stack). If you add a new bucket or
 # change the filters below, ensure no stack can match more than one of the

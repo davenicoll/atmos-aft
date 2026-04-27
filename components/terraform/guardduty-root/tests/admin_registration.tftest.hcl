@@ -1,4 +1,4 @@
-# Phase 1 — registers the audit account as the GuardDuty delegated admin
+# Phase 1 - registers the audit account as the GuardDuty delegated admin
 # from CT-mgmt. Plan-only; verifies count-gate, value propagation, and the
 # 12-digit precondition on var.delegated_admin_account_id.
 

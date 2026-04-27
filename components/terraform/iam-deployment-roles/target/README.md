@@ -1,6 +1,6 @@
 # iam-deployment-roles/target
 
-Stamps `AtmosDeploymentRole` + `AtmosDeploymentRole-ReadOnly` into a target account. Applied once per account during bootstrap or account provisioning — the component runs from aft-mgmt under the central deployment identity, but creates IAM in the target account via the `aws.target` provider alias.
+Stamps `AtmosDeploymentRole` + `AtmosDeploymentRole-ReadOnly` into a target account. Applied once per account during bootstrap or account provisioning - the component runs from aft-mgmt under the central deployment identity, but creates IAM in the target account via the `aws.target` provider alias.
 
 Source of truth: `docs/architecture/gha-design.md` §4.6 (role placement matrix) and `docs/architecture/mapping.md` §5.4 (bootstrap identity chain).
 
@@ -26,15 +26,15 @@ This component runs **before** `AtmosDeploymentRole` exists in the target. The `
 - Vended accounts: `AWSControlTowerExecution` (stamped by CT Account Factory)
 - CT-core accounts: `OrganizationAccountAccessRole` (stamped by Organizations)
 
-Selected via `ATMOS_AUTH_IDENTITY=target-bootstrap` in the calling workflow (`_bootstrap-target.yaml`). The `target-bootstrap` identity in `atmos.yaml` templates the assumed role as `arn:aws:iam::{{ .vars.account_id }}:role/{{ .vars.bootstrap_role | default "AWSControlTowerExecution" }}`, so the **stack YAML for each account class sets `vars.bootstrap_role`** — omit it for vended (default `AWSControlTowerExecution`), set it to `OrganizationAccountAccessRole` for the four CT-core classes. The component itself does not consume `bootstrap_role`; it's purely an auth-chain input. After this component applies, every subsequent component in the stack uses the default `target` identity (which assumes `AtmosDeploymentRole`).
+Selected via `ATMOS_AUTH_IDENTITY=target-bootstrap` in the calling workflow (`_bootstrap-target.yaml`). The `target-bootstrap` identity in `atmos.yaml` templates the assumed role as `arn:aws:iam::{{ .vars.account_id }}:role/{{ .vars.bootstrap_role | default "AWSControlTowerExecution" }}`, so the **stack YAML for each account class sets `vars.bootstrap_role`** - omit it for vended (default `AWSControlTowerExecution`), set it to `OrganizationAccountAccessRole` for the four CT-core classes. The component itself does not consume `bootstrap_role`; it's purely an auth-chain input. After this component applies, every subsequent component in the stack uses the default `target` identity (which assumes `AtmosDeploymentRole`).
 
 ## Inputs
 
 - `region`
-- `aft_mgmt_account_id` — who hosts `AtmosCentralDeploymentRole` / `AtmosPlanOnlyRole`
-- `account_class` — `ct-mgmt` | `aft-mgmt` | `audit` | `log-archive` | `vended`
-- `atmos_external_id` — required for CT-core classes, empty for `vended`
-- `max_session_duration` — default 3600
+- `aft_mgmt_account_id` - who hosts `AtmosCentralDeploymentRole` / `AtmosPlanOnlyRole`
+- `account_class` - `ct-mgmt` | `aft-mgmt` | `audit` | `log-archive` | `vended`
+- `atmos_external_id` - required for CT-core classes, empty for `vended`
+- `max_session_duration` - default 3600
 
 ## Outputs
 

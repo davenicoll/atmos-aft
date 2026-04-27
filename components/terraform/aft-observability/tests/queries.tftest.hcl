@@ -65,7 +65,7 @@ run "query_name_is_context_prefixed" {
   # (delimiter = "-"), id resolves to "test-test-aft-observability".
   assert {
     condition     = aws_cloudwatch_query_definition.saved["account_id_query"].name == "test-test-aft-observability/account_id_query"
-    error_message = "Query name must be the context-id prefix joined with the map key by '/' — prevents collisions across stages."
+    error_message = "Query name must be the context-id prefix joined with the map key by '/' - prevents collisions across stages."
   }
 }
 

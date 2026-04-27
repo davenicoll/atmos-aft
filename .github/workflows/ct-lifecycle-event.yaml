@@ -60,10 +60,10 @@ jobs:
       - id: c
         shell: bash
         env:
-          # Full raw CT event envelope — branch on detail.eventName and pluck
+          # Full raw CT event envelope - branch on detail.eventName and pluck
           # the per-event account id out of the correct serviceEventDetails
           # sub-object (createManagedAccountStatus / updateManagedAccountStatus
-          # / registerOrganizationalUnitStatus — the last has no account).
+          # / registerOrganizationalUnitStatus - the last has no account).
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
         run: |
           set -euo pipefail

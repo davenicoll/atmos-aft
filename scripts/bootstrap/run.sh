@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# atmos bootstrap — A (gather) → B (scaffold PR) → C (apply central) → D (dispatch fleet).
+# atmos bootstrap - A (gather) → B (scaffold PR) → C (apply central) → D (dispatch fleet).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -184,7 +184,7 @@ phase_a() {
             aput "$k" "$v"
         done < <(yq -o=tsv '.answers | to_entries | map([.key, .value]) | .[]' "$ANSWERS_FILE")
     else
-        has_tty || die "no TTY for interactive prompts — use --answers FILE"
+        has_tty || die "no TTY for interactive prompts - use --answers FILE"
         local gh_default gh_org gh_repo lz_default count i key msg choices regex default val
         gh_default=$(default_github || true)
         gh_org="${gh_default%%/*}"
@@ -205,7 +205,7 @@ phase_a() {
             while :; do
                 val=$(prompt_one "$key" "$msg" "$default" "$choices")
                 if [[ -n "$regex" && ! "$val" =~ $regex ]]; then
-                    echo "invalid — must match $regex" >&2; continue
+                    echo "invalid - must match $regex" >&2; continue
                 fi
                 [[ -n "$choices" ]] && { [[ " $choices " == *" $val "* ]] || { echo "invalid choice" >&2; continue; }; }
                 break
@@ -245,7 +245,7 @@ phase_b() {
 
     if [[ -f "$out/_defaults.yaml" ]]; then
         if [[ $ASSUME_YES -eq 1 || -n "$ANSWERS_FILE" || $DRY_RUN -eq 1 ]]; then
-            echo "phase B: scaffold already present at stacks/orgs/$ns — skipping" >&2
+            echo "phase B: scaffold already present at stacks/orgs/$ns - skipping" >&2
             return 0
         fi
         local choice
@@ -277,7 +277,7 @@ phase_b() {
 
     render_to "$TPL/_defaults.yaml.tmpl"                    "$out/_defaults.yaml"
     # Core-account stack files are named gbl.yaml (not _defaults.yaml) so
-    # they are picked up by atmos stack discovery — _defaults.yaml is in
+    # they are picked up by atmos stack discovery - _defaults.yaml is in
     # excluded_paths in atmos.yaml.
     render_to "$TPL/core/ct-mgmt/gbl.yaml.tmpl"             "$out/core/ct-mgmt/gbl.yaml"
     render_to "$TPL/core/audit/gbl.yaml.tmpl"               "$out/core/audit/gbl.yaml"
@@ -317,7 +317,7 @@ phase_b() {
         return 0
     fi
     if [[ $SKIP_REMOTE -eq 1 ]]; then
-        echo "phase B: scaffold written under $out — --skip-remote: not committing/pushing" >&2
+        echo "phase B: scaffold written under $out - --skip-remote: not committing/pushing" >&2
         return 0
     fi
 
@@ -378,13 +378,13 @@ phase_c() {
         pr_state=$(gh pr list --head "$branch" --state all --json state --jq '.[0].state' 2>/dev/null || true)
     fi
     if [[ -n "$pr_state" && "$pr_state" != "MERGED" ]]; then
-        die "phase C: scaffold PR on branch $branch is $pr_state — merge it first, then re-run"
+        die "phase C: scaffold PR on branch $branch is $pr_state - merge it first, then re-run"
     fi
 
     # Credential check. OAAR expected via current env (AWS_PROFILE or STS creds).
     if [[ $DRY_RUN -eq 0 ]]; then
         if ! aws sts get-caller-identity >/dev/null 2>&1; then
-            die "phase C: AWS credentials not usable — set AWS_PROFILE / AWS_* for the aft-mgmt account OAAR session"
+            die "phase C: AWS credentials not usable - set AWS_PROFILE / AWS_* for the aft-mgmt account OAAR session"
         fi
         local actual expected
         actual=$(aws sts get-caller-identity --query Account --output text)
@@ -396,7 +396,7 @@ phase_c() {
 
     echo "phase C: applying central components to $central_stack" >&2
 
-    # Resolve the central state bucket from the stack config — backend.bucket
+    # Resolve the central state bucket from the stack config - backend.bucket
     # is templated in stacks/orgs/_defaults.yaml as
     # {tenant}-{environment}-{stage}-{account_id}, so atmos returns the right
     # name for whichever topology / region this deployment uses.
@@ -425,7 +425,7 @@ phase_c() {
     run atmos terraform init tfstate-backend-central -s "$central_stack" \
         --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
 
-    # 2. github-oidc-provider — skip if present.
+    # 2. github-oidc-provider - skip if present.
     local gh_host="token.actions.githubusercontent.com" acct_id oidc_arn
     acct_id=$(aget aft_mgmt_account_id)
     oidc_arn="arn:aws:iam::${acct_id}:oidc-provider/${gh_host}"
@@ -435,7 +435,7 @@ phase_c() {
         run atmos terraform apply github-oidc-provider -s "$central_stack" -- -auto-approve
     fi
 
-    # 3. iam-deployment-roles/central — skip if AtmosCentralDeploymentRole already exists.
+    # 3. iam-deployment-roles/central - skip if AtmosCentralDeploymentRole already exists.
     if [[ $DRY_RUN -eq 0 ]] && aws iam get-role --role-name AtmosCentralDeploymentRole >/dev/null 2>&1; then
         echo "  skip: AtmosCentralDeploymentRole already present" >&2
     else
@@ -468,7 +468,7 @@ phase_d() {
                 epoch_then=$(date -u -d "$created_at" +%s)
             fi
             if (( epoch_now - epoch_then < 86400 )); then
-                echo "phase D: bootstrap.yaml succeeded within last 24h ($created_at) — offering skip" >&2
+                echo "phase D: bootstrap.yaml succeeded within last 24h ($created_at) - offering skip" >&2
                 if [[ $ASSUME_YES -eq 1 ]] || ! has_tty; then return 0; fi
                 local c; c=$(prompt_one skip "Re-dispatch anyway?" "no" "yes no")
                 [[ "$c" == "yes" ]] || return 0

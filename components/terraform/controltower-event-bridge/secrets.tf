@@ -78,7 +78,7 @@ resource "aws_secretsmanager_secret" "github_pat" {
   count = local.enabled && local.pat_mode ? 1 : 0
 
   name        = local.pat_secret_name
-  description = "Fine-grained GitHub PAT with Actions:write on ${var.github_org}/${var.github_repo}. Manual rotation every 90 days (operator toil — prefer mode=app)."
+  description = "Fine-grained GitHub PAT with Actions:write on ${var.github_org}/${var.github_repo}. Manual rotation every 90 days (operator toil - prefer mode=app)."
 
   tags = module.this.tags
 

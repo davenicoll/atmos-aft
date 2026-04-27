@@ -6,7 +6,7 @@ variable "region" {
 variable "retention_days" {
   type        = number
   default     = 2555
-  description = "Retention in days. Default 2555 (~7 years; the AWS provider's plan-time validation caps at 2555, not 3653 — keep the default at the cap)."
+  description = "Retention in days. Default 2555 (~7 years; the AWS provider's plan-time validation caps at 2555, not 3653 - keep the default at the cap)."
 
   validation {
     condition     = var.retention_days >= 7 && var.retention_days <= 2555

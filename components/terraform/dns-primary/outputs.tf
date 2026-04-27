@@ -4,7 +4,7 @@ output "zone_id" {
 }
 
 output "name_servers" {
-  description = "Primary zone nameservers — used as NS values by dns-delegated children."
+  description = "Primary zone nameservers - used as NS values by dns-delegated children."
   value       = try(aws_route53_zone.primary[0].name_servers, [])
 }
 

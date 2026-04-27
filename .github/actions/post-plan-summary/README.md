@@ -38,13 +38,13 @@ With cross-workflow plan persistence:
 
 | Name | Required | Default | Description |
 |---|---|---|---|
-| `plan_file` | yes | — | Path to the Terraform planfile. |
-| `stack` | yes | — | Atmos stack name. |
-| `component` | yes | — | Atmos component name. |
+| `plan_file` | yes | - | Path to the Terraform planfile. |
+| `stack` | yes | - | Atmos stack name. |
+| `component` | yes | - | Atmos component name. |
 | `working_directory` | no | `.` | Directory in which to run `terraform show`. |
 | `persist` | no | `false` | Upload planfile via plan-storage action. |
-| `plan_storage_bucket` | no | — | S3 bucket; required when `persist=true`. |
-| `plan_storage_table` | no | — | DynamoDB table; required when `persist=true`. |
+| `plan_storage_bucket` | no | - | S3 bucket; required when `persist=true`. |
+| `plan_storage_table` | no | - | DynamoDB table; required when `persist=true`. |
 | `comment` | no | `true` | Post sticky PR comment on `pull_request` events. |
 
 ## Outputs

@@ -1,5 +1,5 @@
 output "account_id" {
-  description = "12-digit AWS account ID of the newly vended account. Extracted from the provisioned product's RecordOutputs.AccountId. Null until CT finishes provisioning — the precondition below will fail the apply rather than publish a null to SSM."
+  description = "12-digit AWS account ID of the newly vended account. Extracted from the provisioned product's RecordOutputs.AccountId. Null until CT finishes provisioning - the precondition below will fail the apply rather than publish a null to SSM."
   value       = local.account_id
 
   # Service Catalog may finish the provisioned_product resource before CT has
@@ -38,6 +38,6 @@ output "provisioned_product_arn" {
 }
 
 output "status" {
-  description = "Provisioning status at last apply. Published to /aft/account/<name>/status as the runtime state row (replaces aft-request-metadata DDB table — mapping.md §4.1)."
+  description = "Provisioning status at last apply. Published to /aft/account/<name>/status as the runtime state row (replaces aft-request-metadata DDB table - mapping.md §4.1)."
   value       = try(aws_servicecatalog_provisioned_product.account[0].status, null)
 }

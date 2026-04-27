@@ -5,7 +5,7 @@
 # - enabled gate
 #
 # AUDIT FLAG: ttl is hard-coded to 300s. RFC standard for NS records is
-# 172800s (48h). Not fixed here — flagged for follow-up.
+# 172800s (48h). Not fixed here - flagged for follow-up.
 
 mock_provider "aws" {}
 
@@ -71,7 +71,7 @@ run "with_parent_zone_id_creates_delegation_ns" {
     error_message = "Delegation record name must equal the delegated subzone FQDN."
   }
 
-  # Hard-coded TTL audit flag — see file-level comment.
+  # Hard-coded TTL audit flag - see file-level comment.
   assert {
     condition     = aws_route53_record.delegation[0].ttl == 300
     error_message = "Delegation NS record ttl is currently 300s (audit-flagged: RFC standard is 172800s/48h)."

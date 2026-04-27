@@ -27,7 +27,7 @@ variable "github_auth_mode" {
 variable "github_app_id" {
   type        = string
   default     = ""
-  description = "GitHub App numeric ID. Required when github_auth_mode='app'. Stored unencrypted — this is the public App identifier, not the private key."
+  description = "GitHub App numeric ID. Required when github_auth_mode='app'. Stored unencrypted - this is the public App identifier, not the private key."
 }
 
 variable "github_app_installation_id" {

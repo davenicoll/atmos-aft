@@ -1,7 +1,7 @@
 # install-gha-cli-deps
 
-Install ancillary CLIs used across workflows — `jq`, `yq`, `conftest`,
-`opa`, and optional `gh` extensions — at pinned versions.
+Install ancillary CLIs used across workflows - `jq`, `yq`, `conftest`,
+`opa`, and optional `gh` extensions - at pinned versions.
 
 Implements `gha-design.md` §7.6.
 
@@ -35,11 +35,11 @@ With overrides and gh extensions:
 | `conftest_version` | no | `0.56.0` | Conftest version. |
 | `opa_version` | no | `0.68.0` | OPA version. |
 | `install_jq` | no | `true` | Install `jq` via apt if missing. |
-| `gh_extensions` | no | — | Space-separated `owner/repo` gh extensions. |
+| `gh_extensions` | no | - | Space-separated `owner/repo` gh extensions. |
 
 ## Behaviour
 
 - Skips each install when the requested version is already present.
 - Places binaries in `/usr/local/bin` so they are on `PATH` for later steps.
-- `gh extension install` uses `github.token` — the job needs no extra
+- `gh extension install` uses `github.token` - the job needs no extra
   permissions for public extensions.

@@ -1,6 +1,6 @@
 # tfstate-backend-central
 
-Central bootstrap state bucket. Lives **only** in the aft-mgmt account. Stores each enrolled account's own `tfstate-backend` component state, keyed `bootstrap/<account-id>/tfstate-backend/terraform.tfstate` — see `docs/architecture/atmos-model.md` §9.3.3.
+Central bootstrap state bucket. Lives **only** in the aft-mgmt account. Stores each enrolled account's own `tfstate-backend` component state, keyed `bootstrap/<account-id>/tfstate-backend/terraform.tfstate` - see `docs/architecture/atmos-model.md` §9.3.3.
 
 Distinct from the per-account `tfstate-backend` component (inventory row 1): same backing module, different shape. This one is aft-mgmt-only, simpler KMS policy, and is the only bucket that ever needs `terraform init -migrate-state` (operator-run, once, during initial bootstrap).
 
@@ -18,8 +18,8 @@ Per `docs/architecture/atmos-model.md` §9.3.3 steps 1–2, this component is fi
 
 ## Inputs
 
-- `region` — AWS region
-- `aft_mgmt_account_id` — the account this component applies into
+- `region` - AWS region
+- `aft_mgmt_account_id` - the account this component applies into
 
 ## Outputs
 

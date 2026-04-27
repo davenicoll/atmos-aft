@@ -1,6 +1,6 @@
 # The component is a thin wrapper around cloudposse/s3-log-storage. Most of
 # the AFT-required hardening (sse_algorithm = AES256, force_destroy = false,
-# four public-access flags = true) is hardcoded in main.tf — terraform test
+# four public-access flags = true) is hardcoded in main.tf - terraform test
 # cannot read module-input arguments at plan time, only outputs (which the
 # wrapped module computes after apply). What IS testable here is the
 # variable-surface contract: defaults for retention windows, and that the
@@ -102,6 +102,6 @@ run "target_role_arn_default_is_empty" {
   # configure-aws). Non-empty triggers the assume_role block in providers.tf.
   assert {
     condition     = var.target_role_arn == ""
-    error_message = "Default target_role_arn must be empty — assume_role only fires when TF_VAR_target_role_arn is exported."
+    error_message = "Default target_role_arn must be empty - assume_role only fires when TF_VAR_target_role_arn is exported."
   }
 }

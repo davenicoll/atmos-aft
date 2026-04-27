@@ -72,7 +72,7 @@ run "central_trust_pins_deploy_environments_only" {
     condition = !can(
       regex("repo:acme/atmos-aft:pull_request", data.aws_iam_policy_document.central_trust.json)
     )
-    error_message = "central_trust must NOT allow pull_request — that flow uses AtmosPlanOnlyRole."
+    error_message = "central_trust must NOT allow pull_request - that flow uses AtmosPlanOnlyRole."
   }
 
   assert {
@@ -97,7 +97,7 @@ run "plan_only_trust_pins_pull_request_only" {
     condition = !can(
       regex("refs/heads/main", data.aws_iam_policy_document.plan_only_trust.json)
     )
-    error_message = "plan_only_trust must NOT allow main — that flow is AtmosCentralDeploymentRole."
+    error_message = "plan_only_trust must NOT allow main - that flow is AtmosCentralDeploymentRole."
   }
 }
 

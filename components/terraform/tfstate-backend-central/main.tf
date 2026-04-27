@@ -13,7 +13,7 @@ locals {
 # Supplementary bucket policy merged into the module-generated one via
 # source_policy_documents. Must be a FULL policy document (the
 # cloudposse/tfstate-backend module's aggregated_policy data source
-# parses each element as a complete policy with Version + Statement —
+# parses each element as a complete policy with Version + Statement -
 # a bare statements array fails JSON validation at plan time).
 data "aws_iam_policy_document" "bucket_extra" {
   count = local.enabled ? 1 : 0
