@@ -152,7 +152,7 @@ commands:
       - name: to
         usage: "Stop after this phase"
     steps:
-      - "bash scripts/bootstrap/run.sh {{ if .Flags.answers }}--answers {{ .Flags.answers }}{{ end }} {{ if .Flags.dry-run }}--dry-run{{ end }} {{ if .Flags.print-questions }}--print-questions{{ end }} {{ if .Flags.skip-remote }}--skip-remote{{ end }} {{ if .Flags.yes }}--yes{{ end }} {{ if .Flags.phase }}--phase {{ .Flags.phase }}{{ end }} {{ if .Flags.from }}--from {{ .Flags.from }}{{ end }} {{ if .Flags.to }}--to {{ .Flags.to }}{{ end }}"
+      - "bash scripts/bootstrap/run.sh {{ if .Flags.answers }}--answers {{ .Flags.answers }}{{ end }} {{ if index .Flags \"dry-run\" }}--dry-run{{ end }} {{ if index .Flags \"print-questions\" }}--print-questions{{ end }} {{ if index .Flags \"skip-remote\" }}--skip-remote{{ end }} {{ if .Flags.yes }}--yes{{ end }} {{ if .Flags.phase }}--phase {{ .Flags.phase }}{{ end }} {{ if .Flags.from }}--from {{ .Flags.from }}{{ end }} {{ if .Flags.to }}--to {{ .Flags.to }}{{ end }}"
 
 settings:
   list_merge_strategy: "merge"
