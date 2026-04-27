@@ -406,17 +406,34 @@ phase_c() {
     bucket="${tenant_v}-${env_v}-${stage_v}-${acct_id}"
 
     # 1. tfstate-backend-central — must run first to create the central state
-    # bucket. First apply uses -backend=false (state stays local); a follow-up
-    # 'init -migrate-state' lifts it into the freshly-created S3 bucket.
+    # bucket. atmos auto-writes backend.tf.json on every invocation, so the
+    # bootstrap apply has to bypass atmos and run terraform directly with a
+    # local backend. Once the bucket exists, atmos resumes with init
+    # -migrate-state to lift state into S3.
+    local tbc_dir="$REPO/components/terraform/tfstate-backend-central"
     if [[ $DRY_RUN -eq 0 ]] && aws s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
         echo "  skip: tfstate-backend-central bucket $bucket already present" >&2
     else
         echo "  apply: tfstate-backend-central (local backend, creates s3://$bucket)" >&2
-        run atmos terraform init tfstate-backend-central -s "$central_stack" -- -backend=false
-        run atmos terraform apply tfstate-backend-central -s "$central_stack" -- -auto-approve
+        # Resolve component vars from atmos and write to a tfvars file.
+        local tbc_tfvars
+        tbc_tfvars=$(mktemp -t tbc-vars.XXXXXX).tfvars.json
+        # Atmos serializes numeric-looking account IDs as JSON numbers; terraform
+        # variables here are typed string. Walk the var tree and coerce numbers
+        # to strings (this component has no numeric inputs).
+        atmos describe component tfstate-backend-central -s "$central_stack" --format json \
+            | jq '.vars | walk(if type == "number" then tostring else . end)' > "$tbc_tfvars"
+        (
+            cd "$tbc_dir"
+            rm -f backend.tf.json    # remove atmos-generated backend so init uses local
+            run terraform init -backend=false -input=false
+            run terraform apply -auto-approve -input=false -var-file="$tbc_tfvars"
+        )
+        rm -f "$tbc_tfvars"
     fi
-    # Re-init with the now-existing S3 backend; migrates local state on first run.
-    run atmos terraform init tfstate-backend-central -s "$central_stack" -- -reconfigure -migrate-state -input=false -force-copy
+    # Re-init via atmos with the now-existing S3 backend; migrates local state.
+    # Atmos regenerates backend.tf.json before running.
+    run atmos terraform init tfstate-backend-central -s "$central_stack" -- -migrate-state -input=false -force-copy
 
     # 2. github-oidc-provider — skip if present.
     local gh_host="token.actions.githubusercontent.com" oidc_arn=""
