@@ -285,6 +285,28 @@ phase_b() {
     render_to "$TPL/tenant/_defaults.yaml.tmpl"             "$out/$tenant/_defaults.yaml"
     render_to "$TPL/tenant/region.yaml.tmpl"                "$out/$tenant/dev/$region.yaml"
 
+    # Single-account topology: fold the AFT-central catalogs into ct-mgmt
+    # so 'core-gbl-mgmt' becomes the central stack (no separate aft-mgmt).
+    if [[ "$(aget topology)" == "single" && $DRY_RUN -eq 0 ]]; then
+        local ctmgmt="$out/core/ct-mgmt/_defaults.yaml"
+        if [[ -f "$ctmgmt" ]] && ! grep -q 'tfstate-backend-central' "$ctmgmt"; then
+            local tmp; tmp=$(mktemp)
+            awk '
+                /^  - catalog\/account-classes\/ct-mgmt$/ {
+                    print
+                    print "  # Single-account topology: ct-mgmt absorbs the AFT-central catalogs."
+                    print "  - catalog/tfstate-backend-central/defaults"
+                    print "  - catalog/iam-deployment-roles/central/defaults"
+                    print "  - catalog/github-oidc-provider/defaults"
+                    print "  - catalog/controltower-event-bridge/defaults"
+                    next
+                }
+                { print }
+            ' "$ctmgmt" > "$tmp" && mv "$tmp" "$ctmgmt"
+            plan_lines+=("inject AFT-central catalogs into ct-mgmt (single-topology)")
+        fi
+    fi
+
     if [[ $DRY_RUN -eq 1 ]]; then
         { echo; echo "=== plan ==="; printf '%s\n' "${plan_lines[@]}"; } >&2
         return 0
@@ -376,14 +398,14 @@ phase_c() {
     if [[ $DRY_RUN -eq 0 ]] && aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$oidc_arn" >/dev/null 2>&1; then
         echo "  skip: github-oidc-provider already present"
     else
-        run atmos terraform apply github-oidc-provider -s "$central_stack" --auto-approve
+        run atmos terraform apply github-oidc-provider -s "$central_stack" -- -auto-approve
     fi
 
     # 2. iam-deployment-roles/central — skip if AtmosCentralDeploymentRole already exists.
     if [[ $DRY_RUN -eq 0 ]] && aws iam get-role --role-name AtmosCentralDeploymentRole >/dev/null 2>&1; then
         echo "  skip: AtmosCentralDeploymentRole already present"
     else
-        run atmos terraform apply iam-deployment-roles/central -s "$central_stack" --auto-approve
+        run atmos terraform apply iam-deployment-roles/central -s "$central_stack" -- -auto-approve
     fi
 
     # 3. tfstate-backend-central — init-reconfigure to migrate local→S3 if needed, then apply.
@@ -393,7 +415,7 @@ phase_c() {
         run atmos terraform init tfstate-backend-central -s "$central_stack" -- -reconfigure -migrate-state
     else
         run atmos terraform init tfstate-backend-central -s "$central_stack" -- -reconfigure -migrate-state
-        run atmos terraform apply tfstate-backend-central -s "$central_stack" --auto-approve
+        run atmos terraform apply tfstate-backend-central -s "$central_stack" -- -auto-approve
     fi
 }
 
