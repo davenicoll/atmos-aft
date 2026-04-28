@@ -456,47 +456,6 @@ resolve_bootstrap_role() {
     return 1
 }
 
-# Apply tfstate-backend in a target account (creates per-account state bucket
-# + KMS, then migrates local state to S3). Idempotent: skips the local-first
-# apply when the bucket already exists.
-#
-# Cross-account auth: with_assumed_role exports STS-assumed creds for the
-# target account so terraform's S3 backend (and AWS provider) operate
-# directly as that identity. We clear TF_VAR_target_role_arn to avoid a
-# double-assume in the provider's dynamic assume_role block.
-stamp_account_state() {
-    local stack="$1" acct="$2" target_arn="${3:-}"
-    local backend_bucket tb_dir="$REPO/components/terraform/tfstate-backend"
-    backend_bucket=$(atmos describe component tfstate-backend -s "$stack" --format json \
-        | jq -r '.backend.bucket')
-    [[ -n "$backend_bucket" && "$backend_bucket" != "null" ]] || \
-        die "no backend.bucket for tfstate-backend in $stack"
-
-    # Component dirs are reused across stacks (audit, log-archive, ...). The
-    # .terraform cache from a prior stack's run encodes that stack's backend
-    # config; without scrubbing it, a subsequent local-backend apply trips
-    # on 'Backend initialization required - Unsetting the previously set
-    # backend s3'. Reset the working dir between stamps.
-    rm -rf "$tb_dir/.terraform" "$tb_dir/.terraform.lock.hcl" "$tb_dir/backend.tf.json"
-
-    local exists=1
-    if [[ $DRY_RUN -eq 0 ]]; then
-        with_assumed_role "$target_arn" aws s3api head-bucket --bucket "$backend_bucket" \
-            >/dev/null 2>&1 && exists=0 || exists=1
-    fi
-    if [[ $DRY_RUN -eq 0 && $exists -eq 0 ]]; then
-        echo "  skip: tfstate-backend bucket $backend_bucket already present in $acct" >&2
-    else
-        echo "  apply: tfstate-backend in $acct (local backend, creates s3://$backend_bucket)" >&2
-        TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
-            atmos terraform apply tfstate-backend -s "$stack" \
-            --auto-generate-backend-file=false -- -auto-approve
-    fi
-    TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
-        atmos terraform init tfstate-backend -s "$stack" \
-        --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
-}
-
 # Run a command and retry on IAM eventual-consistency failures - the
 # 'MalformedPolicyDocument: Invalid principal' error AWS returns for a few
 # seconds after a referenced role is created. Captures combined stdout+stderr
@@ -512,10 +471,9 @@ retry_iam_consistency() {
             rm -f "$errlog"
             return 0
         fi
-        if grep -q "MalformedPolicyDocument" "$errlog" \
-            && grep -q "Invalid principal" "$errlog" \
+        if grep -qE "MalformedPolicyDocument|Invalid principal|invalid principals" "$errlog" \
             && (( i < attempts )); then
-            echo "  IAM eventual consistency hit; sleeping ${delay}s and retrying ($i/$attempts)" >&2
+            echo "  IAM/KMS eventual consistency hit; sleeping ${delay}s and retrying ($i/$attempts)" >&2
             sleep "$delay"
             delay=$((delay * 2))
             i=$((i+1))
@@ -528,27 +486,87 @@ retry_iam_consistency() {
     return 1
 }
 
-# Stamp AtmosDeploymentRole in a target account. Skips when present.
-stamp_account_role() {
+# Stamp a CT-core account: create AtmosDeploymentRole then per-account
+# tfstate-backend (bucket + KMS), then migrate both component states into
+# the new bucket. The order matters - tfstate-backend's KMS key policy
+# references AtmosDeploymentRole, so the role must exist first.
+#
+# For target_arn="" (single-topology ct-mgmt or separate-topology aft-mgmt
+# central account): the central state bucket already exists, so we only
+# stamp the role with the regular S3 backend. No tfstate-backend apply.
+#
+# Cross-account auth: with_assumed_role exports STS-assumed creds for the
+# target account so terraform's S3 backend and AWS provider operate as
+# that identity. TF_VAR_target_role_arn is cleared to avoid a double-assume
+# in the provider's dynamic assume_role block.
+stamp_target_account() {
     local stack="$1" acct="$2" target_arn="${3:-}"
+    local target_dir="$REPO/components/terraform/iam-deployment-roles/target"
+    local tb_dir="$REPO/components/terraform/tfstate-backend"
+
+    if [[ -z "$target_arn" ]]; then
+        # Local stamp (central account): bucket already exists; standard apply.
+        if [[ $DRY_RUN -eq 0 ]] && \
+            aws iam get-role --role-name AtmosDeploymentRole >/dev/null 2>&1; then
+            echo "  skip: AtmosDeploymentRole already present in $acct (local)" >&2
+            return
+        fi
+        echo "  apply: iam-deployment-roles/target in $acct (local; central bucket)" >&2
+        rm -rf "$target_dir/.terraform" "$target_dir/.terraform.lock.hcl" "$target_dir/backend.tf.json"
+        run retry_iam_consistency atmos terraform apply iam-deployment-roles/target \
+            -s "$stack" -- -auto-approve
+        return
+    fi
+
+    # Cross-account stamp: per-account bucket doesn't exist yet. Apply both
+    # components with local backend (target first so the role exists when
+    # tfstate-backend's KMS policy references it), then migrate both states.
+    local backend_bucket
+    backend_bucket=$(atmos describe component tfstate-backend -s "$stack" --format json \
+        | jq -r '.backend.bucket')
+    [[ -n "$backend_bucket" && "$backend_bucket" != "null" ]] || \
+        die "no backend.bucket for tfstate-backend in $stack"
+
+    # 1. iam-deployment-roles/target - creates AtmosDeploymentRole(+ReadOnly).
+    #    Retry on IAM eventual consistency for the trust policy's references
+    #    to AtmosCentralDeploymentRole / AtmosPlanOnlyRole.
     if [[ $DRY_RUN -eq 0 ]] && \
         with_assumed_role "$target_arn" aws iam get-role --role-name AtmosDeploymentRole \
         >/dev/null 2>&1; then
         echo "  skip: AtmosDeploymentRole already present in $acct" >&2
     else
-        echo "  apply: iam-deployment-roles/target in $acct (stamps AtmosDeploymentRole)" >&2
-        # Reset the component working dir - the same iam-deployment-roles/target
-        # source is applied across ct-mgmt / audit / log-archive, each with a
-        # different backend bucket. Stale .terraform from a prior stack would
-        # fight the new backend.tf.json atmos writes for this stack.
-        local tgt_dir="$REPO/components/terraform/iam-deployment-roles/target"
-        rm -rf "$tgt_dir/.terraform" "$tgt_dir/.terraform.lock.hcl" "$tgt_dir/backend.tf.json"
-        # iam-deployment-roles/target's trust policies reference
-        # AtmosCentralDeploymentRole / AtmosPlanOnlyRole which were just
-        # created in the previous step - retry on IAM eventual consistency.
+        echo "  apply: iam-deployment-roles/target in $acct (local backend)" >&2
+        rm -rf "$target_dir/.terraform" "$target_dir/.terraform.lock.hcl" "$target_dir/backend.tf.json"
         TF_VAR_target_role_arn="" run retry_iam_consistency with_assumed_role "$target_arn" \
-            atmos terraform apply iam-deployment-roles/target -s "$stack" -- -auto-approve
+            atmos terraform apply iam-deployment-roles/target -s "$stack" \
+            --auto-generate-backend-file=false -- -auto-approve
     fi
+
+    # 2. tfstate-backend - creates bucket+KMS+policy. KMS policy references
+    #    AtmosDeploymentRole (now exists). Retry on KMS principal validation
+    #    in case the just-created role hasn't propagated.
+    local exists=1
+    if [[ $DRY_RUN -eq 0 ]]; then
+        with_assumed_role "$target_arn" aws s3api head-bucket --bucket "$backend_bucket" \
+            >/dev/null 2>&1 && exists=0 || exists=1
+    fi
+    if [[ $DRY_RUN -eq 0 && $exists -eq 0 ]]; then
+        echo "  skip: tfstate-backend bucket $backend_bucket already in $acct" >&2
+    else
+        echo "  apply: tfstate-backend in $acct (local backend, creates s3://$backend_bucket)" >&2
+        rm -rf "$tb_dir/.terraform" "$tb_dir/.terraform.lock.hcl" "$tb_dir/backend.tf.json"
+        TF_VAR_target_role_arn="" run retry_iam_consistency with_assumed_role "$target_arn" \
+            atmos terraform apply tfstate-backend -s "$stack" \
+            --auto-generate-backend-file=false -- -auto-approve
+    fi
+
+    # 3. Migrate both component states into the now-existing per-account bucket.
+    TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
+        atmos terraform init iam-deployment-roles/target -s "$stack" \
+        --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
+    TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
+        atmos terraform init tfstate-backend -s "$stack" \
+        --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
 }
 
 # ---------- Phase C: apply central components ----------
@@ -670,24 +688,19 @@ phase_c() {
     if [[ "$topology" == "single" ]]; then
         # Single-topology: ct-mgmt IS the central account. State already in
         # tfstate-backend-central; just stamp AtmosDeploymentRole locally.
-        stamp_account_role "core-gbl-mgmt" "$mgmt_id" ""
-        stamp_account_state "core-gbl-audit" "$audit_id" "$audit_role"
-        stamp_account_role  "core-gbl-audit" "$audit_id" "$audit_role"
-        stamp_account_state "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
-        stamp_account_role  "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
+        stamp_target_account "core-gbl-mgmt" "$mgmt_id" ""
+        stamp_target_account "core-gbl-audit" "$audit_id" "$audit_role"
+        stamp_target_account "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
     else
         # Separate-topology: aft-mgmt is central (state already done above);
         # stamp role locally there. ct-mgmt + audit + log-archive are full stamps.
-        stamp_account_role "aft-gbl-mgmt" "$aft_id" ""
+        stamp_target_account "aft-gbl-mgmt" "$aft_id" ""
         local mgmt_role
         mgmt_role=$(resolve_bootstrap_role "$mgmt_id") \
             || die "phase C: no working bootstrap role in ct-mgmt account $mgmt_id"
-        stamp_account_state "core-gbl-mgmt" "$mgmt_id" "$mgmt_role"
-        stamp_account_role  "core-gbl-mgmt" "$mgmt_id" "$mgmt_role"
-        stamp_account_state "core-gbl-audit" "$audit_id" "$audit_role"
-        stamp_account_role  "core-gbl-audit" "$audit_id" "$audit_role"
-        stamp_account_state "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
-        stamp_account_role  "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
+        stamp_target_account "core-gbl-mgmt" "$mgmt_id" "$mgmt_role"
+        stamp_target_account "core-gbl-audit" "$audit_id" "$audit_role"
+        stamp_target_account "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
     fi
 
     # 5. Publish GHA repo variables that downstream workflows depend on.
