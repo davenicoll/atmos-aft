@@ -548,41 +548,49 @@ phase_c() {
     [[ -n "$bucket" && "$bucket" != "null" ]] || \
         die "phase C: could not resolve backend.bucket for tfstate-backend-central in $central_stack"
 
-    # 1. tfstate-backend-central first apply uses LOCAL state (no bucket yet).
-    # --auto-generate-backend-file=false tells atmos NOT to write backend.tf.json,
-    # so terraform falls back to local state. We still scrub any stale
-    # backend.tf.json from a prior run so init picks the local default.
-    local tbc_dir="$REPO/components/terraform/tfstate-backend-central"
-    if [[ $DRY_RUN -eq 0 ]] && aws s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
-        echo "  skip: tfstate-backend-central bucket $bucket already present" >&2
-    else
-        echo "  apply: tfstate-backend-central (local backend, creates s3://$bucket)" >&2
-        rm -f "$tbc_dir/backend.tf.json"
-        run atmos terraform apply tfstate-backend-central -s "$central_stack" \
-            --auto-generate-backend-file=false -- -auto-approve
-    fi
-    # Migrate local state into the now-existing S3 bucket. atmos regenerates
-    # backend.tf.json (default), and --init-run-reconfigure=false stops it from
-    # appending -reconfigure (which is mutually exclusive with -migrate-state).
-    run atmos terraform init tfstate-backend-central -s "$central_stack" \
-        --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
+    # Order matters: oidc → central-roles → tfstate-backend-central. The
+    # tfstate-backend-central bucket policy references the IAM roles from
+    # iam-deployment-roles/central; applying it before those roles exist
+    # returns MalformedPolicy 'Invalid principal'. All three apply with
+    # LOCAL state on first run (bucket doesn't exist yet); after step 3
+    # the bucket is in place and init -migrate-state lifts each
+    # component's local state into S3.
+    #
+    # Idempotency: skip a component's local-apply only when its state is
+    # already in S3 (i.e., a previous run successfully migrated). A partial
+    # failure (e.g., bucket created but policy never applied) leaves state
+    # local, not in S3, so we re-apply and terraform converges via its
+    # local-state diff.
 
-    # 2. github-oidc-provider - skip if present.
-    local gh_host="token.actions.githubusercontent.com" acct_id oidc_arn
-    acct_id=$(aget aft_mgmt_account_id)
-    oidc_arn="arn:aws:iam::${acct_id}:oidc-provider/${gh_host}"
-    if [[ $DRY_RUN -eq 0 ]] && aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$oidc_arn" >/dev/null 2>&1; then
-        echo "  skip: github-oidc-provider already present" >&2
-    else
-        run atmos terraform apply github-oidc-provider -s "$central_stack" -- -auto-approve
-    fi
+    # Returns 0 if the given component's state file already exists in the
+    # central S3 bucket. Used to short-circuit the local-apply phase.
+    state_in_s3() {
+        local component="$1" key
+        key=$(atmos describe component "$component" -s "$central_stack" --format json 2>/dev/null \
+            | jq -r '.backend.key')
+        [[ -n "$key" && "$key" != "null" ]] || return 1
+        aws s3api head-object --bucket "$bucket" --key "$key" >/dev/null 2>&1
+    }
 
-    # 3. iam-deployment-roles/central - skip if AtmosCentralDeploymentRole already exists.
-    if [[ $DRY_RUN -eq 0 ]] && aws iam get-role --role-name AtmosCentralDeploymentRole >/dev/null 2>&1; then
-        echo "  skip: AtmosCentralDeploymentRole already present" >&2
-    else
-        run atmos terraform apply iam-deployment-roles/central -s "$central_stack" -- -auto-approve
-    fi
+    for comp in github-oidc-provider iam-deployment-roles/central tfstate-backend-central; do
+        if [[ $DRY_RUN -eq 0 ]] && state_in_s3 "$comp"; then
+            echo "  skip: $comp state already in S3" >&2
+        else
+            echo "  apply: $comp (local backend)" >&2
+            rm -f "$REPO/components/terraform/$comp/backend.tf.json"
+            run atmos terraform apply "$comp" -s "$central_stack" \
+                --auto-generate-backend-file=false -- -auto-approve
+        fi
+    done
+
+    # Migrate each component's local state to the S3 bucket. atmos regenerates
+    # backend.tf.json with S3; --init-run-reconfigure=false avoids the
+    # -reconfigure/-migrate-state mutual-exclusion conflict. No-op when state
+    # is already in S3.
+    for comp in github-oidc-provider iam-deployment-roles/central tfstate-backend-central; do
+        run atmos terraform init "$comp" -s "$central_stack" \
+            --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
+    done
 
     # 4. Per-CT-core stamping: tfstate-backend (per-account state bucket) and
     # iam-deployment-roles/target (stamps AtmosDeploymentRole). Cross-account
