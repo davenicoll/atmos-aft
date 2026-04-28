@@ -70,6 +70,22 @@ data "aws_iam_policy_document" "bucket_extra" {
   }
 }
 
+# Own the KMS key explicitly. The cloudposse/tfstate-backend module's
+# kms_master_key_id input means "use this existing key", NOT "create one with
+# this alias" - passing it without the key existing leaves the bucket pointing
+# at a missing alias and the data source lookup returns 'empty result'.
+module "kms_key" {
+  source  = "cloudposse/kms-key/aws"
+  version = "0.12.2"
+
+  description             = "Encrypts the per-account tfstate bucket."
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  alias                   = local.kms_alias
+
+  context = module.this.context
+}
+
 module "tfstate_backend" {
   source  = "cloudposse/tfstate-backend/aws"
   version = "1.9.0"
@@ -80,10 +96,8 @@ module "tfstate_backend" {
   dynamodb_enabled      = false
   s3_state_lock_enabled = true
 
-  # SSE-KMS with module-owned CMK; key policy is re-applied via the sibling
-  # aws_kms_key_policy below. v1.9.0 takes an alias name in kms_master_key_id.
   sse_encryption    = "aws:kms"
-  kms_master_key_id = local.kms_alias
+  kms_master_key_id = module.kms_key.key_id
 
   force_destroy           = false
   block_public_acls       = true
@@ -149,18 +163,10 @@ data "aws_iam_policy_document" "kms_key_policy" {
   }
 }
 
-# v1.9.0 does not expose the CMK id as an output; look it up via the alias we
-# passed in so we can re-apply the key policy below.
-data "aws_kms_alias" "tfstate" {
-  count      = local.enabled ? 1 : 0
-  name       = local.kms_alias
-  depends_on = [module.tfstate_backend]
-}
-
 resource "aws_kms_key_policy" "this" {
   count = local.enabled ? 1 : 0
 
-  key_id = data.aws_kms_alias.tfstate[0].target_key_id
+  key_id = module.kms_key.key_id
   policy = data.aws_iam_policy_document.kms_key_policy[0].json
 
   # Losing this policy would lock every deployment role out of the state CMK.

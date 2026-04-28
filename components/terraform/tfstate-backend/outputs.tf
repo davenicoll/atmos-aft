@@ -14,16 +14,16 @@ output "bucket_domain_name" {
 }
 
 output "kms_key_id" {
-  description = "CMK ID used to encrypt state (looked up from the alias we passed to the module)."
-  value       = try(data.aws_kms_alias.tfstate[0].target_key_id, null)
+  description = "CMK ID used to encrypt state."
+  value       = module.kms_key.key_id
 }
 
 output "kms_key_arn" {
   description = "CMK ARN used to encrypt state."
-  value       = try(data.aws_kms_alias.tfstate[0].target_key_arn, null)
+  value       = module.kms_key.key_arn
 }
 
 output "kms_alias_name" {
   description = "Human-readable alias for the CMK."
-  value       = local.kms_alias
+  value       = module.kms_key.alias_name
 }

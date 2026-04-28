@@ -459,6 +459,11 @@ resolve_bootstrap_role() {
 # Apply tfstate-backend in a target account (creates per-account state bucket
 # + KMS, then migrates local state to S3). Idempotent: skips the local-first
 # apply when the bucket already exists.
+#
+# Cross-account auth: with_assumed_role exports STS-assumed creds for the
+# target account so terraform's S3 backend (and AWS provider) operate
+# directly as that identity. We clear TF_VAR_target_role_arn to avoid a
+# double-assume in the provider's dynamic assume_role block.
 stamp_account_state() {
     local stack="$1" acct="$2" target_arn="${3:-}"
     local backend_bucket tb_dir="$REPO/components/terraform/tfstate-backend"
@@ -476,10 +481,12 @@ stamp_account_state() {
     else
         echo "  apply: tfstate-backend in $acct (local backend, creates s3://$backend_bucket)" >&2
         rm -f "$tb_dir/backend.tf.json"
-        TF_VAR_target_role_arn="$target_arn" run atmos terraform apply tfstate-backend -s "$stack" \
+        TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
+            atmos terraform apply tfstate-backend -s "$stack" \
             --auto-generate-backend-file=false -- -auto-approve
     fi
-    TF_VAR_target_role_arn="$target_arn" run atmos terraform init tfstate-backend -s "$stack" \
+    TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
+        atmos terraform init tfstate-backend -s "$stack" \
         --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
 }
 
@@ -492,7 +499,8 @@ stamp_account_role() {
         echo "  skip: AtmosDeploymentRole already present in $acct" >&2
     else
         echo "  apply: iam-deployment-roles/target in $acct (stamps AtmosDeploymentRole)" >&2
-        TF_VAR_target_role_arn="$target_arn" run atmos terraform apply iam-deployment-roles/target -s "$stack" -- -auto-approve
+        TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
+            atmos terraform apply iam-deployment-roles/target -s "$stack" -- -auto-approve
     fi
 }
 
@@ -636,8 +644,8 @@ phase_c() {
     # central component creates - safe to (re)set on every Phase C run.
     local gh_repo_l region auth_mode central_arn plan_only_arn
     region=$(aget primary_region); auth_mode=$(aget aws_auth_mode)
-    central_arn="arn:aws:iam::${acct_id}:role/AtmosCentralDeploymentRole"
-    plan_only_arn="arn:aws:iam::${acct_id}:role/AtmosPlanOnlyRole"
+    central_arn="arn:aws:iam::${aft_id}:role/AtmosCentralDeploymentRole"
+    plan_only_arn="arn:aws:iam::${aft_id}:role/AtmosPlanOnlyRole"
     echo "phase C: publishing GHA repo vars + secret on $gh_target" >&2
     run gh variable set ATMOS_CENTRAL_ROLE_ARN  --repo "$gh_target" --body "$central_arn"
     run gh variable set ATMOS_PLAN_ONLY_ROLE_ARN --repo "$gh_target" --body "$plan_only_arn"
