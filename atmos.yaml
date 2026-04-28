@@ -10,6 +10,11 @@ components:
     deploy_run_init: true
     init_run_reconfigure: true
     auto_generate_backend_file: true
+    # Per-account state buckets already isolate stacks (one stack per bucket
+    # per account). Terraform workspaces would add a redundant layer that
+    # also collides with `{{ .stack }}` in the key template, producing keys
+    # like `<component-flat>/<stack>/<stack>/<component>/terraform.tfstate`.
+    workspaces_enabled: false
     append_user_agent: "atmos-aft/0.1 (https://github.com/davenicoll/atmos-aft)"
     command: "terraform"
     version: "1.14.9"
