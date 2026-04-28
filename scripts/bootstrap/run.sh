@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# atmos bootstrap - A (gather) → B (scaffold PR) → C (apply central) → D (dispatch fleet).
+# atmos bootstrap - A (gather) → B (scaffold PR) → C (apply bootstrap: central + per-account).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ usage() {
     cat <<EOF
 Usage: atmos bootstrap [flags]
 
-Phases: A gather · B scaffold+PR · C apply central components · D dispatch fleet bootstrap
+Phases: A gather · B scaffold+PR · C apply bootstrap (central + per-account)
 
 Flags:
   --answers FILE        Load answers from YAML (skips interactive prompts)
@@ -30,7 +30,7 @@ Flags:
   --print-questions     Emit answer-file schema on stdout and exit
   --skip-remote         After scaffold, do not commit/push/open PR (implies stop after B)
   --yes / -y            Non-interactive: auto-continue between phases
-  --phase LETTER        Run only this phase (A|B|C|D)
+  --phase LETTER        Run only this phase (A|B|C)
   --from LETTER         Start at this phase
   --to LETTER           Stop after this phase
   --force-rescaffold    Bypass uncommitted-changes check when rescaffolding
@@ -112,9 +112,9 @@ run() {
 phase_enabled() {
     local p="$1"
     if [[ -n "$ONLY" ]]; then [[ "$ONLY" == "$p" ]] && return 0 || return 1; fi
-    local order="ABCD"
+    local order="ABC"
     local from_idx="${order%%"${FROM:-A}"*}"; from_idx=${#from_idx}
-    local to_idx="${order%%"${TO:-D}"*}"; to_idx=${#to_idx}
+    local to_idx="${order%%"${TO:-C}"*}"; to_idx=${#to_idx}
     local p_idx="${order%%"${p}"*}"; p_idx=${#p_idx}
     (( p_idx >= from_idx && p_idx <= to_idx ))
 }
@@ -123,8 +123,7 @@ phase_description() {
     case "$1" in
         A) echo "gather answers (interactive prompts or load cached .bootstrap-answers.yaml)" ;;
         B) echo "render stack scaffold under stacks/orgs/<ns>/, commit on bootstrap/<ns>-init, open PR" ;;
-        C) echo "apply central components (tfstate-backend-central, github-oidc-provider, iam-deployment-roles/central) and publish GHA repo vars" ;;
-        D) echo "dispatch bootstrap.yaml on GitHub Actions to stamp AtmosDeploymentRole + tfstate-backend into every CT-core account" ;;
+        C) echo "apply central components, stamp AtmosDeploymentRole + tfstate-backend into every CT-core account, and publish GHA repo vars" ;;
         *) echo "" ;;
     esac
 }
@@ -401,6 +400,87 @@ phase_b() {
     exit 0
 }
 
+# Run a callback under STS-assumed credentials.
+# Args: target_role_arn callback args...
+# If target_role_arn is empty, runs callback directly (no assume).
+with_assumed_role() {
+    local target_arn="$1"; shift
+    if [[ -z "$target_arn" ]]; then
+        "$@"
+        return
+    fi
+    local creds
+    creds=$(aws sts assume-role --role-arn "$target_arn" \
+        --role-session-name atmos-bootstrap \
+        --duration-seconds 900 \
+        --query Credentials --output json 2>/dev/null) || return 2
+    AWS_ACCESS_KEY_ID=$(jq -r .AccessKeyId <<<"$creds") \
+    AWS_SECRET_ACCESS_KEY=$(jq -r .SecretAccessKey <<<"$creds") \
+    AWS_SESSION_TOKEN=$(jq -r .SessionToken <<<"$creds") \
+        "$@"
+}
+
+# Resolve which bootstrap role works in a target account, preferring OAAR
+# then AWSControlTowerExecution. Echoes the working role ARN, or empty.
+resolve_bootstrap_role() {
+    local acct="$1" name
+    if [[ $DRY_RUN -eq 1 ]]; then
+        # No live STS in dry-run; assume OAAR for the printed plan.
+        echo "arn:aws:iam::${acct}:role/OrganizationAccountAccessRole"
+        return 0
+    fi
+    for name in OrganizationAccountAccessRole AWSControlTowerExecution; do
+        local arn="arn:aws:iam::${acct}:role/${name}"
+        if aws sts assume-role --role-arn "$arn" --role-session-name atmos-probe \
+            --duration-seconds 900 --query Credentials.AccessKeyId \
+            --output text >/dev/null 2>&1; then
+            echo "$arn"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Apply tfstate-backend in a target account (creates per-account state bucket
+# + KMS, then migrates local state to S3). Idempotent: skips the local-first
+# apply when the bucket already exists.
+stamp_account_state() {
+    local stack="$1" acct="$2" target_arn="${3:-}"
+    local backend_bucket tb_dir="$REPO/components/terraform/tfstate-backend"
+    backend_bucket=$(atmos describe component tfstate-backend -s "$stack" --format json \
+        | jq -r '.backend.bucket')
+    [[ -n "$backend_bucket" && "$backend_bucket" != "null" ]] || \
+        die "no backend.bucket for tfstate-backend in $stack"
+    local exists=1
+    if [[ $DRY_RUN -eq 0 ]]; then
+        with_assumed_role "$target_arn" aws s3api head-bucket --bucket "$backend_bucket" \
+            >/dev/null 2>&1 && exists=0 || exists=1
+    fi
+    if [[ $DRY_RUN -eq 0 && $exists -eq 0 ]]; then
+        echo "  skip: tfstate-backend bucket $backend_bucket already present in $acct" >&2
+    else
+        echo "  apply: tfstate-backend in $acct (local backend, creates s3://$backend_bucket)" >&2
+        rm -f "$tb_dir/backend.tf.json"
+        TF_VAR_target_role_arn="$target_arn" run atmos terraform apply tfstate-backend -s "$stack" \
+            --auto-generate-backend-file=false -- -auto-approve
+    fi
+    TF_VAR_target_role_arn="$target_arn" run atmos terraform init tfstate-backend -s "$stack" \
+        --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
+}
+
+# Stamp AtmosDeploymentRole in a target account. Skips when present.
+stamp_account_role() {
+    local stack="$1" acct="$2" target_arn="${3:-}"
+    if [[ $DRY_RUN -eq 0 ]] && \
+        with_assumed_role "$target_arn" aws iam get-role --role-name AtmosDeploymentRole \
+        >/dev/null 2>&1; then
+        echo "  skip: AtmosDeploymentRole already present in $acct" >&2
+    else
+        echo "  apply: iam-deployment-roles/target in $acct (stamps AtmosDeploymentRole)" >&2
+        TF_VAR_target_role_arn="$target_arn" run atmos terraform apply iam-deployment-roles/target -s "$stack" -- -auto-approve
+    fi
+}
+
 # ---------- Phase C: apply central components ----------
 phase_c() {
     need aws
@@ -485,79 +565,64 @@ phase_c() {
         run atmos terraform apply iam-deployment-roles/central -s "$central_stack" -- -auto-approve
     fi
 
-    # 4. Publish GHA repo variables that downstream workflows depend on.
+    # 4. Per-CT-core stamping: tfstate-backend (per-account state bucket) and
+    # iam-deployment-roles/target (stamps AtmosDeploymentRole). Cross-account
+    # work uses STS-assumed OAAR / AWSControlTowerExecution from CT-mgmt creds.
+    echo "phase C: stamping per-account state buckets + AtmosDeploymentRole" >&2
+    local mgmt_id audit_id log_archive_id aft_id
+    mgmt_id=$(aget management_account_id)
+    audit_id=$(aget audit_account_id)
+    log_archive_id=$(aget log_archive_account_id)
+    aft_id=$(aget aft_mgmt_account_id)
+
+    local audit_role log_archive_role
+    audit_role=$(resolve_bootstrap_role "$audit_id") \
+        || die "phase C: no working bootstrap role (OAAR/AWSControlTowerExecution) in audit account $audit_id"
+    log_archive_role=$(resolve_bootstrap_role "$log_archive_id") \
+        || die "phase C: no working bootstrap role in log-archive account $log_archive_id"
+
+    if [[ "$topology" == "single" ]]; then
+        # Single-topology: ct-mgmt IS the central account. State already in
+        # tfstate-backend-central; just stamp AtmosDeploymentRole locally.
+        stamp_account_role "core-gbl-mgmt" "$mgmt_id" ""
+        stamp_account_state "core-gbl-audit" "$audit_id" "$audit_role"
+        stamp_account_role  "core-gbl-audit" "$audit_id" "$audit_role"
+        stamp_account_state "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
+        stamp_account_role  "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
+    else
+        # Separate-topology: aft-mgmt is central (state already done above);
+        # stamp role locally there. ct-mgmt + audit + log-archive are full stamps.
+        stamp_account_role "aft-gbl-mgmt" "$aft_id" ""
+        local mgmt_role
+        mgmt_role=$(resolve_bootstrap_role "$mgmt_id") \
+            || die "phase C: no working bootstrap role in ct-mgmt account $mgmt_id"
+        stamp_account_state "core-gbl-mgmt" "$mgmt_id" "$mgmt_role"
+        stamp_account_role  "core-gbl-mgmt" "$mgmt_id" "$mgmt_role"
+        stamp_account_state "core-gbl-audit" "$audit_id" "$audit_role"
+        stamp_account_role  "core-gbl-audit" "$audit_id" "$audit_role"
+        stamp_account_state "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
+        stamp_account_role  "core-gbl-log-archive" "$log_archive_id" "$log_archive_role"
+    fi
+
+    # 5. Publish GHA repo variables that downstream workflows depend on.
     # Values are deterministic from Phase A answers and the role names the
     # central component creates - safe to (re)set on every Phase C run.
-    local gh_org gh_repo region auth_mode central_arn plan_only_arn
-    gh_org=$(aget github_org); gh_repo=$(aget github_repo)
+    local gh_repo_l region auth_mode central_arn plan_only_arn
     region=$(aget primary_region); auth_mode=$(aget aws_auth_mode)
     central_arn="arn:aws:iam::${acct_id}:role/AtmosCentralDeploymentRole"
     plan_only_arn="arn:aws:iam::${acct_id}:role/AtmosPlanOnlyRole"
-    echo "phase C: publishing GHA repo vars on $gh_org/$gh_repo" >&2
-    run gh variable set ATMOS_CENTRAL_ROLE_ARN  --repo "$gh_org/$gh_repo" --body "$central_arn"
-    run gh variable set ATMOS_PLAN_ONLY_ROLE_ARN --repo "$gh_org/$gh_repo" --body "$plan_only_arn"
-    run gh variable set AWS_REGION              --repo "$gh_org/$gh_repo" --body "$region"
-    run gh variable set AFT_AUTH_MODE           --repo "$gh_org/$gh_repo" --body "$auth_mode"
-}
-
-# ---------- Phase D: dispatch fleet bootstrap ----------
-phase_d() {
-    need gh
-    local ns acct_id region topology sep gh_org gh_repo gh_target
-    ns="$(aget namespace)"
-    acct_id=$(aget aft_mgmt_account_id)
-    region=$(aget primary_region)
-    topology=$(aget topology)
-    sep=$([[ "$topology" == "separate" ]] && echo true || echo false)
-    gh_org=$(aget github_org); gh_repo=$(aget github_repo)
-    gh_target="$gh_org/$gh_repo"
-
-    # Skip if a recent successful bootstrap run exists.
-    if [[ $DRY_RUN -eq 0 ]]; then
-        local last
-        last=$(gh run list --repo "$gh_target" --workflow bootstrap.yaml --limit 1 \
-            --json status,conclusion,createdAt --jq '.[0] | select(.conclusion=="success")' 2>/dev/null || true)
-        if [[ -n "$last" ]]; then
-            local created_at epoch_now epoch_then
-            created_at=$(jq -r '.createdAt' <<<"$last")
-            epoch_now=$(date -u +%s)
-            if [[ "$(uname -s)" == "Darwin" ]]; then
-                epoch_then=$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$created_at" +%s)
-            else
-                epoch_then=$(date -u -d "$created_at" +%s)
-            fi
-            if (( epoch_now - epoch_then < 86400 )); then
-                echo "phase D: bootstrap.yaml succeeded within last 24h ($created_at) - offering skip" >&2
-                if [[ $ASSUME_YES -eq 1 ]] || ! has_tty; then return 0; fi
-                local c; c=$(prompt_one skip "Re-dispatch anyway?" "no" "yes no")
-                [[ "$c" == "yes" ]] || return 0
-            fi
-        fi
-    fi
-
-    run gh workflow run bootstrap.yaml \
-        --repo "$gh_target" \
-        -f "aft_mgmt_account_id=$acct_id" \
-        -f "aft_mgmt_region=$region" \
-        -f "separate_aft_mgmt_account=$sep" \
-        -f "terraform_distribution=oss"
-
-    if [[ $DRY_RUN -eq 0 ]] && has_tty && [[ $ASSUME_YES -eq 0 ]]; then
-        local watch; watch=$(prompt_one watch "Watch run?" "yes" "yes no")
-        if [[ "$watch" == "yes" ]]; then
-            local run_id
-            run_id=$(gh run list --repo "$gh_target" --workflow bootstrap.yaml --limit 1 --json databaseId --jq '.[0].databaseId')
-            gh run watch "$run_id" --repo "$gh_target" || true
-        fi
-    fi
+    echo "phase C: publishing GHA repo vars on $gh_target" >&2
+    run gh variable set ATMOS_CENTRAL_ROLE_ARN  --repo "$gh_target" --body "$central_arn"
+    run gh variable set ATMOS_PLAN_ONLY_ROLE_ARN --repo "$gh_target" --body "$plan_only_arn"
+    run gh variable set AWS_REGION              --repo "$gh_target" --body "$region"
+    run gh variable set AFT_AUTH_MODE           --repo "$gh_target" --body "$auth_mode"
 }
 
 # ---------- driver ----------
-# Phase A (gather) has no side effects and is a prerequisite for B/C/D.
+# Phase A (gather) has no side effects and is a prerequisite for B/C.
 # Always run it; --phase / --from / --to only gate the action phases.
 phase_a
 phase_enabled B && { confirm_continue B && phase_b || die "aborted before phase B"; }
 phase_enabled C && { confirm_continue C && phase_c || die "aborted before phase C"; }
-phase_enabled D && { confirm_continue D && phase_d || die "aborted before phase D"; }
 
 echo "bootstrap: done"

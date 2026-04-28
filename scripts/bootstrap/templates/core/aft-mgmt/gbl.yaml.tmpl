@@ -4,6 +4,11 @@ import:
   - mixins/region/global
   - mixins/stage/mgmt
   - catalog/account-classes/aft-mgmt
+  # aft-mgmt only renders for separate-topology - it's the central stack.
+  - catalog/tfstate-backend-central/defaults
+  - catalog/iam-deployment-roles/central/defaults
+  - catalog/github-oidc-provider/defaults
+  - catalog/controltower-event-bridge/defaults
 
 vars:
   account_id: "{{ .aft_mgmt_account_id }}"

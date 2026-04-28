@@ -173,7 +173,6 @@ jobs:
           - customize-fleet.yaml
           - drift-detection.yaml
           - destroy-account.yaml
-          - bootstrap.yaml
           - import-existing-account.yaml
           - vendor-refresh.yaml
           - notify.yaml
