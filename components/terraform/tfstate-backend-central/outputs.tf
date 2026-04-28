@@ -10,15 +10,15 @@ output "bucket_arn" {
 
 output "kms_key_id" {
   description = "KMS key ID protecting the bootstrap bucket."
-  value       = try(data.aws_kms_alias.tfstate[0].target_key_id, null)
+  value       = module.kms_key.key_id
 }
 
 output "kms_key_arn" {
   description = "KMS key ARN protecting the bootstrap bucket."
-  value       = try(data.aws_kms_alias.tfstate[0].target_key_arn, null)
+  value       = module.kms_key.key_arn
 }
 
 output "kms_alias_name" {
   description = "KMS alias (alias/atmos-tfstate-bootstrap)."
-  value       = "alias/atmos-tfstate-bootstrap"
+  value       = module.kms_key.alias_name
 }

@@ -56,6 +56,23 @@ data "aws_iam_policy_document" "bucket_extra" {
   }
 }
 
+# Explicit KMS key + alias. The cloudposse/tfstate-backend module's
+# kms_master_key_id input is "use this existing key", NOT "create one with
+# this alias" - passing it without the key existing leaves the bucket
+# encryption pointing at a missing alias, and the data source lookup below
+# returns 'empty result'. Own the key here so the contract is unambiguous.
+module "kms_key" {
+  source  = "cloudposse/kms-key/aws"
+  version = "0.12.2"
+
+  description             = "Encrypts the central tfstate bootstrap bucket."
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  alias                   = local.kms_alias
+
+  context = module.this.context
+}
+
 module "tfstate_backend" {
   source  = "cloudposse/tfstate-backend/aws"
   version = "1.9.0"
@@ -74,19 +91,12 @@ module "tfstate_backend" {
   dynamodb_enabled      = false
   s3_state_lock_enabled = true
 
-  # v1.9.0 takes the alias name in kms_master_key_id (no separate alias var).
-  kms_master_key_id = local.kms_alias
+  # Use the key from kms_key module above; tfstate-backend won't create one.
+  kms_master_key_id = module.kms_key.key_id
 
   source_policy_documents = local.enabled ? [data.aws_iam_policy_document.bucket_extra[0].json] : []
 
   context = module.this.context
-}
-
-# v1.9.0 doesn't output the CMK id; resolve it from the alias we passed in.
-data "aws_kms_alias" "tfstate" {
-  count      = local.enabled ? 1 : 0
-  name       = local.kms_alias
-  depends_on = [module.tfstate_backend]
 }
 
 # Override the module-created CMK policy to match atmos-model.md §9.3.2
@@ -94,7 +104,7 @@ data "aws_kms_alias" "tfstate" {
 resource "aws_kms_key_policy" "this" {
   count = local.enabled ? 1 : 0
 
-  key_id = data.aws_kms_alias.tfstate[0].target_key_id
+  key_id = module.kms_key.key_id
 
   policy = jsonencode({
     Version = "2012-10-17"
