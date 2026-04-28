@@ -41,3 +41,7 @@ questions:
   - key: dispatch_auth_mode
     prompt: "Workflow dispatch auth"
     choices: [github_app, pat]
+  - key: atmos_external_id
+    prompt: "sts:ExternalId for CT-core role trust (UUID; press enter for auto-generated)"
+    default_from: "uuidgen"
+    validate: "^[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}$"

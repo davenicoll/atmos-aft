@@ -8,6 +8,9 @@ components:
       metadata:
         component: iam-deployment-roles/target
       vars:
-        aft_mgmt_account_id: !template "{{ .settings.aft_mgmt_account_id }}"
+        # Wrap in quotes so atmos re-parses the template result as a YAML
+        # string, not a number. Without this, !template emits a numeric
+        # literal for digit-only values and breaks type=string.
+        aft_mgmt_account_id: !template '"{{ .settings.aft_mgmt_account_id }}"'
         atmos_external_id: !env ATMOS_EXTERNAL_ID
         max_session_duration: 3600

@@ -7,7 +7,7 @@ components:
       metadata:
         component: tfstate-backend-central
       vars:
-        aft_mgmt_account_id: !template "{{ .settings.aft_mgmt_account_id }}"
+        aft_mgmt_account_id: !template '"{{ .settings.aft_mgmt_account_id }}"'
         # Must produce the same string as terraform.backend.s3.bucket in
         # stacks/orgs/_defaults.yaml.
         bucket_name: !template "{{ .vars.tenant }}-{{ .vars.environment }}-{{ .vars.stage }}-{{ .vars.account_id }}"

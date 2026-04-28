@@ -236,6 +236,7 @@ phase_a() {
                 github_org) default="$gh_org" ;;
                 github_repo) default="$gh_repo" ;;
                 ct_landing_zone_id) default="$lz_default" ;;
+                atmos_external_id) default="$(uuidgen 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)" ;;
             esac
             while :; do
                 val=$(prompt_one "$key" "$msg" "$default" "$choices")
@@ -256,6 +257,12 @@ phase_a() {
         if [[ "$mgmt" != "$aft" ]]; then
             die "topology=single requires aft_mgmt_account_id == management_account_id (got $aft != $mgmt)"
         fi
+    fi
+
+    # Auto-fill atmos_external_id when missing (cached answers from before the
+    # field was introduced won't have it; new prompts default to uuidgen).
+    if [[ -z "$(aget atmos_external_id)" ]]; then
+        aput atmos_external_id "$(uuidgen | tr '[:upper:]' '[:lower:]')"
     fi
 
     # Persist captured answers so subsequent runs skip prompts. Done before
@@ -517,6 +524,10 @@ phase_c() {
         fi
     fi
 
+    # Catalog imports !env ATMOS_EXTERNAL_ID for the four CT-core role trust
+    # policies; export it from the cached answer so atmos resolves it.
+    export ATMOS_EXTERNAL_ID="$(aget atmos_external_id)"
+
     echo "phase C: applying central components to $central_stack" >&2
 
     # Resolve the central state bucket from the stack config - backend.bucket
@@ -611,11 +622,15 @@ phase_c() {
     region=$(aget primary_region); auth_mode=$(aget aws_auth_mode)
     central_arn="arn:aws:iam::${acct_id}:role/AtmosCentralDeploymentRole"
     plan_only_arn="arn:aws:iam::${acct_id}:role/AtmosPlanOnlyRole"
-    echo "phase C: publishing GHA repo vars on $gh_target" >&2
+    echo "phase C: publishing GHA repo vars + secret on $gh_target" >&2
     run gh variable set ATMOS_CENTRAL_ROLE_ARN  --repo "$gh_target" --body "$central_arn"
     run gh variable set ATMOS_PLAN_ONLY_ROLE_ARN --repo "$gh_target" --body "$plan_only_arn"
     run gh variable set AWS_REGION              --repo "$gh_target" --body "$region"
     run gh variable set AFT_AUTH_MODE           --repo "$gh_target" --body "$auth_mode"
+    # ATMOS_EXTERNAL_ID is a repo secret (configure-aws reads it via secrets
+    # context, not vars). Already in the cached answers; publish it here so
+    # GHA workflows can read it.
+    run gh secret   set ATMOS_EXTERNAL_ID       --repo "$gh_target" --body "$ATMOS_EXTERNAL_ID"
 }
 
 # ---------- driver ----------
