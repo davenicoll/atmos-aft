@@ -2,6 +2,12 @@
 # Lift this file's `settings.aft_mgmt_account_id` / `github_org` / `github_repo`
 # to environment-specific values in the per-org `_defaults.yaml`.
 terraform:
+  # Shared plugin cache - hardlinks each provider once across all components
+  # instead of letting every `init` re-download a ~770MB AWS provider into
+  # its own .terraform/. Without this, the components/ tree balloons past
+  # 80GB. The dir is created on first use; safe to delete to reclaim space.
+  env:
+    TF_PLUGIN_CACHE_DIR: '{{ getenv "HOME" }}/.terraform.d/plugin-cache'
   backend_type: s3
   backend:
     s3:
