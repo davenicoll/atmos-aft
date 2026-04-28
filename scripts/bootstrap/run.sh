@@ -471,6 +471,14 @@ stamp_account_state() {
         | jq -r '.backend.bucket')
     [[ -n "$backend_bucket" && "$backend_bucket" != "null" ]] || \
         die "no backend.bucket for tfstate-backend in $stack"
+
+    # Component dirs are reused across stacks (audit, log-archive, ...). The
+    # .terraform cache from a prior stack's run encodes that stack's backend
+    # config; without scrubbing it, a subsequent local-backend apply trips
+    # on 'Backend initialization required - Unsetting the previously set
+    # backend s3'. Reset the working dir between stamps.
+    rm -rf "$tb_dir/.terraform" "$tb_dir/.terraform.lock.hcl" "$tb_dir/backend.tf.json"
+
     local exists=1
     if [[ $DRY_RUN -eq 0 ]]; then
         with_assumed_role "$target_arn" aws s3api head-bucket --bucket "$backend_bucket" \
@@ -480,7 +488,6 @@ stamp_account_state() {
         echo "  skip: tfstate-backend bucket $backend_bucket already present in $acct" >&2
     else
         echo "  apply: tfstate-backend in $acct (local backend, creates s3://$backend_bucket)" >&2
-        rm -f "$tb_dir/backend.tf.json"
         TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
             atmos terraform apply tfstate-backend -s "$stack" \
             --auto-generate-backend-file=false -- -auto-approve
@@ -530,6 +537,12 @@ stamp_account_role() {
         echo "  skip: AtmosDeploymentRole already present in $acct" >&2
     else
         echo "  apply: iam-deployment-roles/target in $acct (stamps AtmosDeploymentRole)" >&2
+        # Reset the component working dir - the same iam-deployment-roles/target
+        # source is applied across ct-mgmt / audit / log-archive, each with a
+        # different backend bucket. Stale .terraform from a prior stack would
+        # fight the new backend.tf.json atmos writes for this stack.
+        local tgt_dir="$REPO/components/terraform/iam-deployment-roles/target"
+        rm -rf "$tgt_dir/.terraform" "$tgt_dir/.terraform.lock.hcl" "$tgt_dir/backend.tf.json"
         # iam-deployment-roles/target's trust policies reference
         # AtmosCentralDeploymentRole / AtmosPlanOnlyRole which were just
         # created in the previous step - retry on IAM eventual consistency.
@@ -619,7 +632,11 @@ phase_c() {
             echo "  skip: $comp state already in S3" >&2
         else
             echo "  apply: $comp (local backend)" >&2
-            rm -f "$REPO/components/terraform/$comp/backend.tf.json"
+            local cdir="$REPO/components/terraform/$comp"
+            # Wipe any prior init's backend reference so terraform falls back
+            # to local state cleanly (--auto-generate-backend-file=false skips
+            # writing backend.tf.json but doesn't reset existing .terraform/).
+            rm -rf "$cdir/.terraform" "$cdir/.terraform.lock.hcl" "$cdir/backend.tf.json"
             run atmos terraform apply "$comp" -s "$central_stack" \
                 --auto-generate-backend-file=false -- -auto-approve
         fi
