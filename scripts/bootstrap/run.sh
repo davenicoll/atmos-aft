@@ -120,9 +120,17 @@ phase_enabled() {
 }
 
 phase_description() {
+    local ns
     case "$1" in
         A) echo "gather answers (interactive prompts or load cached .bootstrap-answers.yaml)" ;;
-        B) echo "render stack scaffold under stacks/orgs/<ns>/, commit on bootstrap/<ns>-init, open PR" ;;
+        B)
+            ns="$(aget namespace 2>/dev/null || true)"
+            if [[ -n "$ns" && -f "$REPO/stacks/orgs/$ns/_defaults.yaml" ]]; then
+                echo "skip (scaffold already present at stacks/orgs/$ns)"
+            else
+                echo "render stack scaffold under stacks/orgs/<ns>/, commit on bootstrap/<ns>-init, open PR"
+            fi
+            ;;
         C) echo "apply central components, stamp AtmosDeploymentRole + tfstate-backend into every CT-core account, and publish GHA repo vars" ;;
         *) echo "" ;;
     esac
