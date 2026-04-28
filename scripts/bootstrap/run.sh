@@ -490,6 +490,37 @@ stamp_account_state() {
         --init-run-reconfigure=false -- -migrate-state -input=false -force-copy
 }
 
+# Run a command and retry on IAM eventual-consistency failures - the
+# 'MalformedPolicyDocument: Invalid principal' error AWS returns for a few
+# seconds after a referenced role is created. Captures combined stdout+stderr
+# so the error class can be pattern-matched after the fact.
+retry_iam_consistency() {
+    local attempts=5 delay=10 i=1 rc errlog
+    errlog=$(mktemp)
+    while (( i <= attempts )); do
+        rc=0
+        ( "$@" ) >"$errlog" 2>&1 || rc=$?
+        cat "$errlog"
+        if (( rc == 0 )); then
+            rm -f "$errlog"
+            return 0
+        fi
+        if grep -q "MalformedPolicyDocument" "$errlog" \
+            && grep -q "Invalid principal" "$errlog" \
+            && (( i < attempts )); then
+            echo "  IAM eventual consistency hit; sleeping ${delay}s and retrying ($i/$attempts)" >&2
+            sleep "$delay"
+            delay=$((delay * 2))
+            i=$((i+1))
+            continue
+        fi
+        rm -f "$errlog"
+        return $rc
+    done
+    rm -f "$errlog"
+    return 1
+}
+
 # Stamp AtmosDeploymentRole in a target account. Skips when present.
 stamp_account_role() {
     local stack="$1" acct="$2" target_arn="${3:-}"
@@ -499,7 +530,10 @@ stamp_account_role() {
         echo "  skip: AtmosDeploymentRole already present in $acct" >&2
     else
         echo "  apply: iam-deployment-roles/target in $acct (stamps AtmosDeploymentRole)" >&2
-        TF_VAR_target_role_arn="" run with_assumed_role "$target_arn" \
+        # iam-deployment-roles/target's trust policies reference
+        # AtmosCentralDeploymentRole / AtmosPlanOnlyRole which were just
+        # created in the previous step - retry on IAM eventual consistency.
+        TF_VAR_target_role_arn="" run retry_iam_consistency with_assumed_role "$target_arn" \
             atmos terraform apply iam-deployment-roles/target -s "$stack" -- -auto-approve
     fi
 }
